@@ -3,16 +3,15 @@
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\ServiceType;
-use App\Models\VehicleCategory;
 use App\Models\Vehicle;
-use Illuminate\Support\Str;
+use App\Models\VehicleCategory;
 
 $rajasthanCities = [
     'Jaipur',
     'Jodhpur',
     'Udaipur',
     'Kota',
-    'Ajmer'
+    'Ajmer',
 ];
 
 $categories = [
@@ -35,9 +34,9 @@ echo "Creating Cities...\n";
 $createdCities = [];
 foreach ($rajasthanCities as $cityName) {
     $createdCities[] = City::factory()->create([
-        'name' => $cityName, 
+        'name' => $cityName,
         'state' => 'Rajasthan',
-        'status' => 'Active'
+        'status' => 'Active',
     ]);
 }
 
@@ -67,7 +66,7 @@ for ($i = 0; $i < 5; $i++) {
         'status' => 'AVAILABLE',
         'current_city_id' => $createdCities[$i]->id,
     ]);
-    
+
     // Create 1 vehicle
     Vehicle::factory()->create([
         'vehicle_category_id' => $createdCategories[$i]->id,

@@ -21,7 +21,9 @@ class BookingController extends Controller
             $request->pickup_time,
             $request->passengers,
             $request->service_type_id,
-            $request->vehicle_preference
+            $request->vehicle_preference,
+            $request->drop_date,
+            $request->drop_time
         );
 
         return VehicleResource::collection($vehicles);

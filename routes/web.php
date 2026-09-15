@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::prefix('booking')->name('booking.')->group(function () {
-    Route::post('/search', [BookingController::class, 'search'])->name('search');
+    Route::match(['get', 'post'], '/search', [BookingController::class, 'search'])->name('search');
     Route::get('/create', [BookingController::class, 'create'])->name('create');
     Route::post('/store', [BookingController::class, 'store'])->name('store');
     Route::get('/confirmation/{bookingNumber}', [BookingController::class, 'confirmation'])->name('confirmation');
@@ -24,9 +24,10 @@ use App\Http\Controllers\Admin\NearbyCityController;
 use App\Http\Controllers\Admin\ServiceTypeController;
 use App\Http\Controllers\Admin\VehicleCategoryController;
 use App\Http\Controllers\Admin\VehicleController;
+use App\Http\Controllers\Driver\DashboardController as DriverDashboardController;
 
 // Admin Routes (Protected)
-Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('bookings', AdminBookingController::class);
     Route::delete('vehicles/images/{image}', [VehicleController::class, 'destroyImage'])->name('vehicles.images.destroy');
@@ -52,9 +53,22 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// For convenience, redirect /dashboard to /admin/dashboard
+// Driver Portal Routes (Protected)
+Route::middleware(['auth', 'role:driver'])->prefix('driver')->name('driver.')->group(function () {
+    Route::get('/dashboard', [DriverDashboardController::class, 'index'])->name('dashboard');
+    Route::post('/availability', [DriverDashboardController::class, 'toggleAvailability'])->name('availability.toggle');
+    Route::get('/rides', [DriverDashboardController::class, 'rides'])->name('rides');
+    Route::get('/cities', [DriverDashboardController::class, 'cities'])->name('cities');
+    Route::post('/cities', [DriverDashboardController::class, 'syncCities'])->name('cities.sync');
+});
+
+// For convenience, redirect /dashboard to the dashboard of the authenticated role
 Route::get('/dashboard', function () {
+    if (auth()->user()->isDriver()) {
+        return redirect()->route('driver.dashboard');
+    }
+
     return redirect()->route('admin.dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth'])->name('dashboard');
 
 require __DIR__.'/auth.php';

@@ -62,6 +62,19 @@
                     <p class="text-gray-500 max-w-md mx-auto">We couldn't find any vehicles matching your criteria for the selected date and time. Please try adjusting your search parameters.</p>
                 </div>
             @else
+                @php
+                    $hasNearbyVehicles = $vehicles->contains('is_from_nearby_city', true);
+                @endphp
+                
+                @if($hasNearbyVehicles)
+                    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-6 text-center animate-fade-in">
+                        <div class="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                            <span class="font-medium">No vehicles available in {{ $pickupCity->name }}</span>
+                        </div>
+                        <p class="text-sm text-amber-600 dark:text-amber-400 mt-1">Check the nearby cities for available vehicles below.</p>
+                    </div>
+                @endif
                 
                 @if($hasPreference && $preferredVehicles->isNotEmpty())
                     <div class="mb-6 flex items-center justify-between">

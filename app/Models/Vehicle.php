@@ -18,7 +18,22 @@ class Vehicle extends Model
         'name', 'model', 'vehicle_category_id', 'registration_number',
         'reference_number', 'seating_capacity', 'city_id', 'operating_city_id',
         'image', 'features', 'status', 'fuel_type', 'has_ac', 'luggage_capacity',
+        'price_per_km', 'price_per_day', 'fixed_km_per_day',
+        'insurance_photo', 'rc_photo', 'last_service_date',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'price_per_km' => 'decimal:2',
+            'price_per_day' => 'decimal:2',
+            'fixed_km_per_day' => 'integer',
+            'has_ac' => 'boolean',
+            'insurance_photo' => 'array',
+            'rc_photo' => 'array',
+            'last_service_date' => 'date',
+        ];
+    }
 
     public function city()
     {
@@ -43,5 +58,29 @@ class Vehicle extends Model
     public function getVehicleTypeAttribute()
     {
         return $this->category ? $this->category->name : 'Standard';
+    }
+
+    /**
+     * Public URLs for all uploaded insurance photos.
+     *
+     * @return list<string>
+     */
+    public function getInsurancePhotoUrlsAttribute(): array
+    {
+        return collect($this->insurance_photo ?? [])
+            ->map(fn (string $path) => asset('storage/'.$path))
+            ->all();
+    }
+
+    /**
+     * Public URLs for all uploaded RC photos.
+     *
+     * @return list<string>
+     */
+    public function getRcPhotoUrlsAttribute(): array
+    {
+        return collect($this->rc_photo ?? [])
+            ->map(fn (string $path) => asset('storage/'.$path))
+            ->all();
     }
 }

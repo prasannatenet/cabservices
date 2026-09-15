@@ -9,9 +9,19 @@ use Illuminate\Support\Facades\Storage;
 
 class ServiceTypeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $services = ServiceType::paginate(15);
+        $services = ServiceType::query()
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->query('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
+            ->paginate(15)
+            ->withQueryString();
 
         return view('admin.service-types.index', compact('services'));
     }

@@ -48,6 +48,13 @@
             </div>
         @endif
 
+        @if($vehicle->is_from_nearby_city ?? false)
+            <div class="absolute top-4 left-4 bg-amber-500/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                {{ $vehicle->city->name }}
+            </div>
+        @endif
+
         <div class="absolute top-4 right-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-gray-900 dark:text-white shadow-sm">
             {{ $vehicle->vehicle_type }}
         </div>

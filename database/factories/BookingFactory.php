@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\BookingStatus;
 use App\Models\Booking;
+use App\Models\ServiceType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,6 +28,7 @@ class BookingFactory extends Factory
             'pickup_date' => $this->faker->date(),
             'pickup_time' => $this->faker->time('H:i'),
             'passengers' => $this->faker->numberBetween(1, 4),
+            'service_type_id' => ServiceType::factory(),
             'status' => BookingStatus::PENDING->value,
         ];
     }

@@ -15,6 +15,42 @@
                         + Add Vehicle
                     </a>
                 </div>
+
+                <div class="p-6 pb-0">
+                    <x-admin-filter-bar :action="route('admin.vehicles.index')">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, model, registration..." class="block w-56 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                            <select name="status" class="block w-36 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">All</option>
+                                @foreach($statuses as $status)
+                                    <option value="{{ $status }}" @selected(request('status') === $status)>{{ $status }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">City</label>
+                            <select name="city_id" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">All</option>
+                                @foreach($cities as $city)
+                                    <option value="{{ $city->id }}" @selected(request('city_id') == $city->id)>{{ $city->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
+                            <select name="category_id" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">All</option>
+                                @foreach($categories as $category)
+                                    <option value="{{ $category->id }}" @selected(request('category_id') == $category->id)>{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </x-admin-filter-bar>
+                </div>
                 
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800/60">
@@ -57,7 +93,8 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="{{ route('admin.vehicles.edit', $vehicle) }}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">Edit</a>
+                                    <a href="{{ route('admin.vehicles.show', $vehicle) }}" class="text-blue-600 hover:text-blue-900 dark:text-blue-400">View</a>
+                                    <a href="{{ route('admin.vehicles.edit', $vehicle) }}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 ml-3">Edit</a>
                                     <form action="{{ route('admin.vehicles.destroy', $vehicle) }}" method="POST" class="inline-block" onsubmit="return confirm('Delete this vehicle?');">
                                         @csrf
                                         @method('DELETE')
@@ -67,7 +104,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No vehicles found.</td>
+                                <td colspan="7" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No vehicles found.</td>
                             </tr>
                             @endforelse
                         </tbody>

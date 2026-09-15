@@ -7,6 +7,7 @@ use App\Http\Requests\StoreBookingRequest;
 use App\Models\Booking;
 use App\Models\City;
 use App\Models\ServiceType;
+use App\Models\Vehicle;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use Illuminate\Http\Request;
@@ -21,7 +22,9 @@ class BookingController extends Controller
             $request->pickup_time,
             $request->passengers,
             $request->service_type_id,
-            $request->vehicle_preference
+            $request->vehicle_preference,
+            $request->drop_date,
+            $request->drop_time
         );
 
         $request->flash();
@@ -39,7 +42,13 @@ class BookingController extends Controller
     {
         $searchParams = $request->except('_token');
 
-        return view('booking.create', compact('searchParams'));
+        // Load vehicle with images if vehicle_id is provided
+        $vehicle = null;
+        if (! empty($searchParams['vehicle_id'])) {
+            $vehicle = Vehicle::with('images')->find($searchParams['vehicle_id']);
+        }
+
+        return view('booking.create', compact('searchParams', 'vehicle'));
     }
 
     public function store(StoreBookingRequest $request, BookingService $bookingService)
@@ -56,7 +65,7 @@ class BookingController extends Controller
 
     public function confirmation($bookingNumber)
     {
-        $booking = Booking::with(['pickupCity', 'dropCity', 'serviceType', 'vehicle'])
+        $booking = Booking::with(['pickupCity', 'dropCity', 'serviceType', 'vehicle.images'])
             ->where('booking_number', $bookingNumber)
             ->firstOrFail();
 

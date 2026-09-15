@@ -8,9 +8,21 @@ use Illuminate\Http\Request;
 
 class CityController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $cities = City::paginate(15);
+        $cities = City::query()
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->query('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('state', 'like', "%{$search}%")
+                        ->orWhere('country', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
+            ->orderBy('name')
+            ->paginate(15)
+            ->withQueryString();
 
         return view('admin.cities.index', compact('cities'));
     }

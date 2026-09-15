@@ -21,6 +21,21 @@
                         </div>
                     @endif
 
+                    <x-admin-filter-bar :action="route('admin.service-types.index')">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Service name..." class="block w-56 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                            <select name="status" class="block w-36 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">All</option>
+                                <option value="Active" @selected(request('status') === 'Active')>Active</option>
+                                <option value="Inactive" @selected(request('status') === 'Inactive')>Inactive</option>
+                            </select>
+                        </div>
+                    </x-admin-filter-bar>
+
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead class="bg-gray-50 dark:bg-gray-700">

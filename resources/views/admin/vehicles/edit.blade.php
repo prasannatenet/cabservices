@@ -94,6 +94,30 @@
                             </div>
 
                             <div>
+                                <x-input-label for="price_per_km" :value="__('Price per KM (₹)')" />
+                                <x-text-input id="price_per_km" class="block mt-1 w-full" type="number" name="price_per_km" :value="old('price_per_km', $vehicle->price_per_km)" step="0.01" min="0" />
+                                <x-input-error :messages="$errors->get('price_per_km')" class="mt-2" />
+                            </div>
+
+                            <div>
+                                <x-input-label for="price_per_day" :value="__('Price per Day (₹)')" />
+                                <x-text-input id="price_per_day" class="block mt-1 w-full" type="number" name="price_per_day" :value="old('price_per_day', $vehicle->price_per_day)" step="0.01" min="0" />
+                                <x-input-error :messages="$errors->get('price_per_day')" class="mt-2" />
+                            </div>
+
+                            <div>
+                                <x-input-label for="fixed_km_per_day" :value="__('Fixed KM per Day')" />
+                                <x-text-input id="fixed_km_per_day" class="block mt-1 w-full" type="number" name="fixed_km_per_day" :value="old('fixed_km_per_day', $vehicle->fixed_km_per_day)" min="0" />
+                                <x-input-error :messages="$errors->get('fixed_km_per_day')" class="mt-2" />
+                            </div>
+
+                            <div>
+                                <x-input-label for="last_service_date" :value="__('Last Service Date')" />
+                                <x-text-input id="last_service_date" class="block mt-1 w-full" type="date" name="last_service_date" :value="old('last_service_date', $vehicle->last_service_date?->format('Y-m-d'))" />
+                                <x-input-error :messages="$errors->get('last_service_date')" class="mt-2" />
+                            </div>
+
+                            <div>
                                 <x-input-label for="status" :value="__('Status')" />
                                 <select id="status" name="status" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm" required>
                                     <option value="Available" @selected(old('status', $vehicle->status) == 'Available')>Available</option>
@@ -127,6 +151,56 @@
                             <input type="file" name="images[]" id="images" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:file:text-primary-400 transition-colors cursor-pointer" />
                             <x-input-error :messages="$errors->get('images')" class="mt-2" />
                             <x-input-error :messages="$errors->get('images.*')" class="mt-2" />
+                            <p class="text-xs text-gray-500 mt-2">Max size: 2MB per image</p>
+                        </div>
+
+                        <div class="col-span-full">
+                            <x-input-label value="Insurance Photos" />
+                            @if(count($vehicle->insurance_photo ?? []) > 0)
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 mb-4">
+                                    @foreach($vehicle->insurance_photo_urls as $index => $url)
+                                        <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                            <img src="{{ $url }}" alt="Insurance Photo" class="h-32 w-full object-cover">
+                                            <label class="flex items-center gap-2 p-2 text-xs text-gray-600 dark:text-gray-400">
+                                                <input type="checkbox" name="remove_insurance[]" value="{{ $vehicle->insurance_photo[$index] }}" class="rounded border-gray-300 dark:border-gray-700 text-red-600 shadow-sm focus:ring-red-500">
+                                                Remove
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 mb-4">No insurance photos uploaded.</p>
+                            @endif
+
+                            <x-input-label for="insurance_photos" value="Add Insurance Photos (Multiple Allowed)" />
+                            <input type="file" name="insurance_photos[]" id="insurance_photos" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:file:text-primary-400 transition-colors cursor-pointer" />
+                            <x-input-error :messages="$errors->get('insurance_photos')" class="mt-2" />
+                            <x-input-error :messages="$errors->get('insurance_photos.*')" class="mt-2" />
+                            <p class="text-xs text-gray-500 mt-2">Max size: 2MB per image</p>
+                        </div>
+
+                        <div class="col-span-full">
+                            <x-input-label value="RC Photos" />
+                            @if(count($vehicle->rc_photo ?? []) > 0)
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 mb-4">
+                                    @foreach($vehicle->rc_photo_urls as $index => $url)
+                                        <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                            <img src="{{ $url }}" alt="RC Photo" class="h-32 w-full object-cover">
+                                            <label class="flex items-center gap-2 p-2 text-xs text-gray-600 dark:text-gray-400">
+                                                <input type="checkbox" name="remove_rc[]" value="{{ $vehicle->rc_photo[$index] }}" class="rounded border-gray-300 dark:border-gray-700 text-red-600 shadow-sm focus:ring-red-500">
+                                                Remove
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 mb-4">No RC photos uploaded.</p>
+                            @endif
+
+                            <x-input-label for="rc_photos" value="Add RC Photos (Multiple Allowed)" />
+                            <input type="file" name="rc_photos[]" id="rc_photos" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:file:text-primary-400 transition-colors cursor-pointer" />
+                            <x-input-error :messages="$errors->get('rc_photos')" class="mt-2" />
+                            <x-input-error :messages="$errors->get('rc_photos.*')" class="mt-2" />
                             <p class="text-xs text-gray-500 mt-2">Max size: 2MB per image</p>
                         </div>
 

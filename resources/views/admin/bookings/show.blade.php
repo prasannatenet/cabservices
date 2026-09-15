@@ -77,6 +77,25 @@
                                 <p class="text-sm text-gray-500 dark:text-gray-400">Drop Location</p>
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $booking->drop_location }} ({{ optional($booking->dropCity)->name }})</p>
                             </div>
+                            @if($booking->vehicle)
+                                <div class="md:col-span-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Selected Vehicle</p>
+                                    <div class="flex items-center gap-4">
+                                        @if($booking->vehicle->images->isNotEmpty())
+                                            <img src="{{ asset('storage/' . $booking->vehicle->images->first()->image_path) }}" 
+                                                 alt="{{ $booking->vehicle->name }}" 
+                                                 class="w-24 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                                        @endif
+                                        <div>
+                                            <p class="font-medium text-gray-900 dark:text-white">{{ $booking->vehicle->name }}</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ $booking->vehicle->model }} &bull; {{ $booking->vehicle->vehicle_type }} &bull; {{ $booking->vehicle->seating_capacity }} seats</p>
+                                            @if($booking->vehicle->images->count() > 1)
+                                                <p class="text-xs text-gray-400 mt-1">{{ $booking->vehicle->images->count() }} images available</p>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     </div>
 

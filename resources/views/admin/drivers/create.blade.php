@@ -74,10 +74,33 @@
                         <x-input-label for="status" :value="__('Status')" />
                         <select id="status" name="status" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm" required>
                             <option value="Available" @selected(old('status') == 'Available')>Available</option>
+                            <option value="Unavailable" @selected(old('status') == 'Unavailable')>Unavailable</option>
                             <option value="Inactive" @selected(old('status') == 'Inactive')>Inactive</option>
                             <option value="On Leave" @selected(old('status') == 'On Leave')>On Leave</option>
                         </select>
                         <x-input-error :messages="$errors->get('status')" class="mt-2" />
+                    </div>
+
+                    <!-- Login Access (Driver Dashboard) -->
+                    <div class="pt-6 border-t border-gray-100 dark:border-gray-800/60 space-y-6">
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900 dark:text-white font-display">Login Access</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Give the driver a login id and password so they can access their own dashboard.</p>
+                        </div>
+
+                        <div>
+                            <x-input-label for="login_id" :value="__('Login ID (Username)')" />
+                            <x-text-input id="login_id" class="block mt-1 w-full" type="text" name="login_id" :value="old('login_id')" />
+                            <p class="text-xs text-gray-500 mt-1">Letters, numbers, dashes and underscores only. Leave blank to skip dashboard access.</p>
+                            <x-input-error :messages="$errors->get('login_id')" class="mt-2" />
+                        </div>
+
+                        <div>
+                            <x-input-label for="login_password" :value="__('Login Password')" />
+                            <x-text-input id="login_password" class="block mt-1 w-full" type="password" name="login_password" autocomplete="new-password" />
+                            <p class="text-xs text-gray-500 mt-1">Minimum 8 characters.</p>
+                            <x-input-error :messages="$errors->get('login_password')" class="mt-2" />
+                        </div>
                     </div>
 
                     <div class="flex items-center justify-end mt-4 gap-4">

@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
+use App\Models\Driver;
 use App\Models\DriverAssignment;
+use App\Models\Vehicle;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -40,7 +42,10 @@ class BookingService
             $booking->pickup_date,
             $booking->pickup_time,
             $booking->passengers,
-            $booking->service_type_id
+            $booking->service_type_id,
+            null,
+            $booking->drop_date,
+            $booking->drop_time
         );
 
         if (! $available->contains('id', $booking->vehicle_id)) {
@@ -163,6 +168,40 @@ class BookingService
                 'new_status' => BookingStatus::CANCELLED->value,
                 'changed_by' => auth()->id() ?? 1,
                 'remarks' => 'Booking cancelled.',
+            ]);
+
+            return $booking;
+        });
+    }
+
+    /**
+     * Mark the trip as completed and relocate the vehicle and driver to the
+     * drop city, so they become available from there (e.g. a Jaipur ->
+     * Udaipur trip makes them available from Udaipur afterwards).
+     */
+    public function completeTrip(Booking $booking, $adminId)
+    {
+        return DB::transaction(function () use ($booking, $adminId) {
+            $oldStatus = $booking->status;
+
+            $booking->update([
+                'status' => BookingStatus::TRIP_COMPLETED->value,
+            ]);
+
+            if ($booking->vehicle_id && $booking->drop_city_id) {
+                Vehicle::whereKey($booking->vehicle_id)->update(['city_id' => $booking->drop_city_id]);
+            }
+
+            if ($booking->driver_id && $booking->drop_city_id) {
+                Driver::whereKey($booking->driver_id)->update(['current_city_id' => $booking->drop_city_id]);
+            }
+
+            BookingStatusHistory::create([
+                'booking_id' => $booking->id,
+                'old_status' => $oldStatus,
+                'new_status' => BookingStatus::TRIP_COMPLETED->value,
+                'changed_by' => $adminId,
+                'remarks' => 'Trip completed. Vehicle and driver relocated to '.($booking->dropCity->name ?? 'the drop city').'.',
             ]);
 
             return $booking;

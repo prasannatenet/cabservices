@@ -23,6 +23,7 @@ class Booking extends Model
     protected $casts = [
         'status' => BookingStatus::class,
         'pickup_date' => 'date',
+        'drop_date' => 'date',
     ];
 
     public function pickupCity()

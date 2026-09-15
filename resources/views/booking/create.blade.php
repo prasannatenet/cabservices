@@ -40,6 +40,27 @@
                     </div>
                 </div>
 
+                @if($vehicle)
+                <div class="p-8 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+                    <h3 class="font-display font-bold text-lg text-gray-900 dark:text-white mb-4">Selected Vehicle</h3>
+                    <div class="flex items-center gap-4">
+                        @if($vehicle->images->isNotEmpty())
+                            <img src="{{ asset('storage/'.$vehicle->images->first()->image_path) }}" alt="{{ $vehicle->name }}" class="w-24 h-20 object-cover rounded-xl border border-gray-200 dark:border-gray-700">
+                        @endif
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ $vehicle->name }}</p>
+                            <p class="text-sm text-gray-500">{{ $vehicle->vehicle_type }} &middot; {{ $vehicle->seating_capacity }} Seats @if($vehicle->has_ac) &middot; AC @endif</p>
+                            @if($vehicle->price_per_day)
+                                <p class="text-sm text-gray-500">₹{{ $vehicle->price_per_day }}/day @if($vehicle->fixed_km_per_day) ({{ $vehicle->fixed_km_per_day }} KM included) @endif</p>
+                            @endif
+                            @if($vehicle->price_per_km)
+                                <p class="text-sm text-gray-500">₹{{ $vehicle->price_per_km }}/KM</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                @endif
+
                 <div class="p-8">
                     @if(session('error'))
                         <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30">

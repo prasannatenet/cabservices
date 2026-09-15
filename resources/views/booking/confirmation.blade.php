@@ -40,7 +40,20 @@
                         </div>
                         <div class="flex justify-between">
                             <span class="text-sm text-gray-500 dark:text-gray-400">Vehicle</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ optional($booking->vehicle)->name ?? 'Assigned soon' }}</span>
+                            <div class="text-right">
+                                @if(optional($booking->vehicle)->name)
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white block">{{ $booking->vehicle->name }}</span>
+                                    @if($booking->vehicle->images->isNotEmpty())
+                                        <div class="mt-2 relative inline-block">
+                                            <img src="{{ asset('storage/' . $booking->vehicle->images->first()->image_path) }}" 
+                                                 alt="{{ $booking->vehicle->name }}" 
+                                                 class="w-20 h-14 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                                        </div>
+                                    @endif
+                                @else
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">Assigned soon</span>
+                                @endif
+                            </div>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-sm text-gray-500 dark:text-gray-400">Service</span>

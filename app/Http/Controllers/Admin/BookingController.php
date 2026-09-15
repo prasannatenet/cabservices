@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingStatusHistory;
+use App\Models\City;
 use App\Models\Driver;
+use App\Models\DriverAssignment;
 use App\Models\Vehicle;
 use App\Services\BookingService;
 use Illuminate\Http\Request;
@@ -13,13 +16,30 @@ use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $bookings = Booking::with(['pickupCity', 'dropCity'])
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->query('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('booking_number', 'like', "%{$search}%")
+                        ->orWhere('customer_name', 'like', "%{$search}%")
+                        ->orWhere('customer_phone', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
+            ->when($request->filled('pickup_city_id'), fn ($query) => $query->where('pickup_city_id', $request->query('pickup_city_id')))
+            ->when($request->filled('date_from'), fn ($query) => $query->whereDate('pickup_date', '>=', $request->query('date_from')))
+            ->when($request->filled('date_to'), fn ($query) => $query->whereDate('pickup_date', '<=', $request->query('date_to')))
             ->orderBy('created_at', 'desc')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
-        return view('admin.bookings.index', compact('bookings'));
+        return view('admin.bookings.index', [
+            'bookings' => $bookings,
+            'cities' => City::orderBy('name')->get(),
+            'statuses' => array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
+        ]);
     }
 
     public function show(Booking $booking)
@@ -50,7 +70,7 @@ class BookingController extends Controller
         }
 
         // If driver changed but status is not changing, just assign the driver
-        if ($driverChanged && !$statusChanged) {
+        if ($driverChanged && ! $statusChanged) {
             $bookingService->assignDriver($booking, $validated['driver_id'], auth()->id() ?? 1);
         }
 
@@ -62,13 +82,23 @@ class BookingController extends Controller
                 }
                 try {
                     $bookingService->confirmBooking($booking, $driverId);
+
                     return back()->with('success', 'Booking Confirmed successfully.');
+                } catch (\Exception $e) {
+                    return back()->with('error', $e->getMessage());
+                }
+            } elseif ($validated['status'] === BookingStatus::TRIP_COMPLETED->value && $booking->status !== BookingStatus::TRIP_COMPLETED) {
+                try {
+                    $bookingService->completeTrip($booking, auth()->id() ?? 1);
+
+                    return back()->with('success', 'Trip Completed. Vehicle and driver are now available from '.($booking->dropCity->name ?? 'the drop city').'.');
                 } catch (\Exception $e) {
                     return back()->with('error', $e->getMessage());
                 }
             } elseif ($validated['status'] === BookingStatus::CANCELLED->value && $booking->status !== BookingStatus::CANCELLED) {
                 try {
                     $bookingService->cancelBooking($booking);
+
                     return back()->with('success', 'Booking Cancelled successfully.');
                 } catch (\Exception $e) {
                     return back()->with('error', $e->getMessage());
@@ -78,7 +108,7 @@ class BookingController extends Controller
                 $booking->status = $validated['status'];
                 if ($driverChanged) {
                     $booking->driver_id = $validated['driver_id'];
-                    \App\Models\DriverAssignment::create([
+                    DriverAssignment::create([
                         'booking_id' => $booking->id,
                         'driver_id' => $booking->driver_id,
                         'vehicle_id' => $booking->vehicle_id,
@@ -87,8 +117,8 @@ class BookingController extends Controller
                     ]);
                 }
                 $booking->save();
-                
-                \App\Models\BookingStatusHistory::create([
+
+                BookingStatusHistory::create([
                     'booking_id' => $booking->id,
                     'old_status' => $oldStatus->value,
                     'new_status' => $validated['status'],
