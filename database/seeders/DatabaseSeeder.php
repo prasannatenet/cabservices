@@ -32,6 +32,18 @@ class DatabaseSeeder extends Seeder
             $city->nearbyCities()->attach($nearby->pluck('id')->toArray());
         }
 
+        // Demo associate (sub-admin) who manages the first two cities.
+        // He logs in with the login id "associate" or associate@example.com / password.
+        $associate = User::factory()->create([
+            'name' => 'Demo Associate',
+            'email' => 'associate@example.com',
+            'username' => 'associate',
+            'password' => Hash::make('password'),
+            'role' => User::ROLE_ASSOCIATE,
+        ]);
+
+        $associate->assignedCities()->sync($cities->take(2)->pluck('id')->all());
+
         $services = [
             'Airport Transfer',
             'Local',

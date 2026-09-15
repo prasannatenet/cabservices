@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Enums\DriverStatus;
 use Database\Factories\DriverFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Driver extends Model
@@ -16,10 +18,28 @@ class Driver extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'phone', 'whatsapp', 'email', 'address', 'user_id',
+        'name', 'phone', 'whatsapp', 'email', 'address', 'user_id', 'created_by',
         'license_number', 'license_expiry', 'license_document', 'experience_years', 'profile_photo',
         'current_city_id', 'status',
     ];
+
+    /**
+     * The admin or associate who added the driver.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Restrict the query to drivers currently based in the given cities.
+     *
+     * @param  list<int>  $cityIds
+     */
+    public function scopeInCities(Builder $query, array $cityIds): Builder
+    {
+        return $query->whereIn('current_city_id', $cityIds);
+    }
 
     public function user()
     {

@@ -15,6 +15,7 @@ Route::prefix('booking')->name('booking.')->group(function () {
     Route::get('/confirmation/{bookingNumber}', [BookingController::class, 'confirmation'])->name('confirmation');
 });
 
+use App\Http\Controllers\Admin\AssociateController;
 use App\Http\Controllers\Admin\BookingController as AdminBookingController;
 use App\Http\Controllers\Admin\CityController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -24,11 +25,19 @@ use App\Http\Controllers\Admin\NearbyCityController;
 use App\Http\Controllers\Admin\ServiceTypeController;
 use App\Http\Controllers\Admin\VehicleCategoryController;
 use App\Http\Controllers\Admin\VehicleController;
+use App\Http\Controllers\Associate\BookingController as AssociateBookingController;
+use App\Http\Controllers\Associate\CityController as AssociateCityController;
+use App\Http\Controllers\Associate\DashboardController as AssociateDashboardController;
+use App\Http\Controllers\Associate\DriverController as AssociateDriverController;
+use App\Http\Controllers\Associate\DriverLeaveController as AssociateDriverLeaveController;
+use App\Http\Controllers\Associate\ServiceTypeController as AssociateServiceTypeController;
+use App\Http\Controllers\Associate\VehicleController as AssociateVehicleController;
 use App\Http\Controllers\Driver\DashboardController as DriverDashboardController;
 
 // Admin Routes (Protected)
 Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::resource('associates', AssociateController::class)->except(['show']);
     Route::resource('bookings', AdminBookingController::class);
     Route::delete('vehicles/images/{image}', [VehicleController::class, 'destroyImage'])->name('vehicles.images.destroy');
     Route::resource('vehicles', VehicleController::class);
@@ -62,13 +71,32 @@ Route::middleware(['auth', 'role:driver'])->prefix('driver')->name('driver.')->g
     Route::post('/cities', [DriverDashboardController::class, 'syncCities'])->name('cities.sync');
 });
 
+// Associate Portal Routes (Protected)
+// An associate is the admin of the cities assigned to him: he manages the fleet,
+// drivers, services and bookings of those cities only. He can never open /admin.
+Route::middleware(['auth', 'role:associate', 'verified'])->prefix('associate')->name('associate.')->group(function () {
+    Route::get('/dashboard', [AssociateDashboardController::class, 'index'])->name('dashboard');
+
+    Route::delete('vehicles/images/{image}', [AssociateVehicleController::class, 'destroyImage'])->name('vehicles.images.destroy');
+    Route::resource('vehicles', AssociateVehicleController::class);
+
+    Route::resource('drivers', AssociateDriverController::class);
+
+    Route::get('drivers/{driver}/leaves', [AssociateDriverLeaveController::class, 'index'])->name('drivers.leaves');
+    Route::post('drivers/{driver}/leaves', [AssociateDriverLeaveController::class, 'store'])->name('drivers.leaves.store');
+    Route::put('drivers/{driver}/leaves/{leave}', [AssociateDriverLeaveController::class, 'update'])->name('drivers.leaves.update');
+    Route::delete('drivers/{driver}/leaves/{leave}', [AssociateDriverLeaveController::class, 'destroy'])->name('drivers.leaves.destroy');
+
+    Route::resource('service-types', AssociateServiceTypeController::class)->except(['show']);
+
+    Route::resource('bookings', AssociateBookingController::class)->only(['index', 'show', 'update']);
+
+    Route::get('cities', [AssociateCityController::class, 'index'])->name('cities.index');
+});
+
 // For convenience, redirect /dashboard to the dashboard of the authenticated role
 Route::get('/dashboard', function () {
-    if (auth()->user()->isDriver()) {
-        return redirect()->route('driver.dashboard');
-    }
-
-    return redirect()->route('admin.dashboard');
+    return redirect()->route(auth()->user()->homeRouteName());
 })->middleware(['auth'])->name('dashboard');
 
 require __DIR__.'/auth.php';

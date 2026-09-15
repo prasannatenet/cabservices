@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Database\Factories\VehicleFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Vehicle extends Model
@@ -15,12 +17,31 @@ class Vehicle extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'created_by',
         'name', 'model', 'vehicle_category_id', 'registration_number',
         'reference_number', 'seating_capacity', 'city_id', 'operating_city_id',
         'image', 'features', 'status', 'fuel_type', 'has_ac', 'luggage_capacity',
         'price_per_km', 'price_per_day', 'fixed_km_per_day',
         'insurance_photo', 'rc_photo', 'last_service_date',
     ];
+
+    /**
+     * The admin or associate who added the vehicle.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Restrict the query to vehicles based in the given cities.
+     *
+     * @param  list<int>  $cityIds
+     */
+    public function scopeInCities(Builder $query, array $cityIds): Builder
+    {
+        return $query->whereIn('city_id', $cityIds);
+    }
 
     protected function casts(): array
     {

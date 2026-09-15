@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\BookingStatus;
 use Database\Factories\BookingFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -29,6 +30,16 @@ class Booking extends Model
     public function pickupCity()
     {
         return $this->belongsTo(City::class, 'pickup_city_id');
+    }
+
+    /**
+     * Restrict the query to bookings starting in the given cities.
+     *
+     * @param  list<int>  $cityIds
+     */
+    public function scopeInCities(Builder $query, array $cityIds): Builder
+    {
+        return $query->whereIn('pickup_city_id', $cityIds);
     }
 
     public function dropCity()

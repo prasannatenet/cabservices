@@ -1,22 +1,30 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Associate;
 
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use App\Models\VehicleImage;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
+/**
+ * The associate is the admin of the cities assigned to him: he manages every
+ * vehicle currently based in those cities, and nothing outside them.
+ */
 class VehicleController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): View
     {
-        $vehicles = Vehicle::with(['city', 'category', 'creator'])
+        $vehicles = Vehicle::with(['city', 'category'])
+            ->inCities($this->cityIds())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -32,20 +40,20 @@ class VehicleController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('admin.vehicles.index', [
+        return view('associate.vehicles.index', [
             'vehicles' => $vehicles,
-            'cities' => City::orderBy('name')->get(),
+            'cities' => $this->assignedCities(),
             'categories' => VehicleCategory::orderBy('name')->get(),
             'statuses' => ['Available', 'On Trip', 'Maintenance', 'Inactive'],
         ]);
     }
 
-    public function create()
+    public function create(): View
     {
-        $cities = City::all();
-        $categories = VehicleCategory::all();
-
-        return view('admin.vehicles.create', compact('cities', 'categories'));
+        return view('associate.vehicles.create', [
+            'cities' => $this->assignedCities(),
+            'categories' => VehicleCategory::all(),
+        ]);
     }
 
     public function store(Request $request)
@@ -59,34 +67,37 @@ class VehicleController extends Controller
 
         $vehicle = Vehicle::create($validated);
 
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('vehicles', 'public');
-                $vehicle->images()->create(['image_path' => $path]);
-            }
-        }
+        $this->storeGalleryImages($request, $vehicle);
 
-        return redirect()->route('admin.vehicles.index')->with('success', 'Vehicle created successfully.');
+        return redirect()->route('associate.vehicles.index')->with('success', 'Vehicle created successfully.');
     }
 
-    public function edit(Vehicle $vehicle)
+    public function show(Vehicle $vehicle): View
     {
-        $cities = City::all();
-        $categories = VehicleCategory::all();
-        $vehicle->load('images');
+        $this->authorizeVehicle($vehicle);
 
-        return view('admin.vehicles.edit', compact('vehicle', 'cities', 'categories'));
-    }
-
-    public function show(Vehicle $vehicle)
-    {
         $vehicle->load(['city', 'operatingCity', 'category', 'images']);
 
-        return view('admin.vehicles.show', compact('vehicle'));
+        return view('associate.vehicles.show', compact('vehicle'));
+    }
+
+    public function edit(Vehicle $vehicle): View
+    {
+        $this->authorizeVehicle($vehicle);
+
+        $vehicle->load('images');
+
+        return view('associate.vehicles.edit', [
+            'vehicle' => $vehicle,
+            'cities' => $this->assignedCities(),
+            'categories' => VehicleCategory::all(),
+        ]);
     }
 
     public function update(Request $request, Vehicle $vehicle)
     {
+        $this->authorizeVehicle($vehicle);
+
         $validated = $this->validatedVehicleData($request, $vehicle);
 
         $validated['insurance_photo'] = $this->mergeDocumentPhotos(
@@ -103,28 +114,28 @@ class VehicleController extends Controller
 
         $vehicle->update($validated);
 
-        if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('vehicles', 'public');
-                $vehicle->images()->create(['image_path' => $path]);
-            }
-        }
+        $this->storeGalleryImages($request, $vehicle);
 
-        return redirect()->route('admin.vehicles.index')->with('success', 'Vehicle updated successfully.');
+        return redirect()->route('associate.vehicles.index')->with('success', 'Vehicle updated successfully.');
     }
 
     public function destroy(Vehicle $vehicle)
     {
+        $this->authorizeVehicle($vehicle);
+
         foreach ($vehicle->images as $img) {
             Storage::disk('public')->delete($img->image_path);
         }
-        $vehicle->delete(); // Cascades to vehicle_images table due to DB constraint
 
-        return redirect()->route('admin.vehicles.index')->with('success', 'Vehicle deleted successfully.');
+        $vehicle->delete();
+
+        return redirect()->route('associate.vehicles.index')->with('success', 'Vehicle deleted successfully.');
     }
 
     public function destroyImage(VehicleImage $image)
     {
+        $this->authorizeVehicle($image->vehicle);
+
         Storage::disk('public')->delete($image->image_path);
         $image->delete();
 
@@ -132,20 +143,23 @@ class VehicleController extends Controller
     }
 
     /**
-     * Validate vehicle request data shared by store and update.
+     * Validate vehicle request data shared by store and update. The vehicle may
+     * only be based in (or operate from) one of the associate's cities.
      *
      * @return array<string, mixed>
      */
     private function validatedVehicleData(Request $request, ?Vehicle $vehicle = null): array
     {
+        $cityIds = $this->cityIds();
+
         return $request->validate([
             'name' => 'required|string|max:255',
             'model' => 'required|string|max:255',
             'vehicle_category_id' => 'required|exists:vehicle_categories,id',
             'registration_number' => 'required|string|unique:vehicles,registration_number'.($vehicle ? ','.$vehicle->id : ''),
             'seating_capacity' => 'required|integer|min:1',
-            'city_id' => 'required|exists:cities,id',
-            'operating_city_id' => 'nullable|exists:cities,id',
+            'city_id' => ['required', Rule::in($cityIds)],
+            'operating_city_id' => ['nullable', Rule::in($cityIds)],
             'fuel_type' => 'nullable|string|max:50',
             'has_ac' => 'boolean',
             'luggage_capacity' => 'nullable|integer',
@@ -165,6 +179,20 @@ class VehicleController extends Controller
             'images.*' => 'image|max:2048',
             'status' => 'required|string',
         ]);
+    }
+
+    /**
+     * Store the uploaded gallery images for a vehicle.
+     */
+    private function storeGalleryImages(Request $request, Vehicle $vehicle): void
+    {
+        if (! $request->hasFile('images')) {
+            return;
+        }
+
+        foreach ($request->file('images') as $image) {
+            $vehicle->images()->create(['image_path' => $image->store('vehicles', 'public')]);
+        }
     }
 
     /**
@@ -198,5 +226,37 @@ class VehicleController extends Controller
             ->merge($uploaded)
             ->values()
             ->all();
+    }
+
+    /**
+     * Ids of the cities this associate manages.
+     *
+     * @return list<int>
+     */
+    private function cityIds(): array
+    {
+        return auth()->user()->assignedCityIds();
+    }
+
+    /**
+     * The cities shown in every dropdown of this panel.
+     *
+     * @return Collection<int, City>
+     */
+    private function assignedCities()
+    {
+        return auth()->user()->assignedCities()->orderBy('name')->get();
+    }
+
+    /**
+     * Stop the associate from touching a vehicle of a city he does not manage.
+     */
+    private function authorizeVehicle(?Vehicle $vehicle): void
+    {
+        abort_unless(
+            $vehicle instanceof Vehicle && auth()->user()->managesCity($vehicle->city_id),
+            403,
+            'This vehicle belongs to a city you do not manage.'
+        );
     }
 }

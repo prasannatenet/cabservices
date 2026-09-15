@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\CityFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class City extends Model
 {
@@ -34,5 +35,13 @@ class City extends Model
     public function drivers()
     {
         return $this->hasMany(Driver::class, 'current_city_id');
+    }
+
+    /**
+     * The associates who manage this city.
+     */
+    public function associates(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'city_user')->withTimestamps();
     }
 }

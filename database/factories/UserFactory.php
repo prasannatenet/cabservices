@@ -27,9 +27,11 @@ class UserFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            'username' => str_replace('.', '_', fake()->unique()->userName()),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'role' => User::ROLE_ADMIN,
+            'status' => User::STATUS_ACTIVE,
             'remember_token' => Str::random(10),
         ];
     }
@@ -51,6 +53,17 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => User::ROLE_DRIVER,
+        ]);
+    }
+
+    /**
+     * Indicate that the user is an associate (a sub-admin for a set of cities).
+     */
+    public function associate(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => User::ROLE_ASSOCIATE,
+            'status' => User::STATUS_ACTIVE,
         ]);
     }
 }

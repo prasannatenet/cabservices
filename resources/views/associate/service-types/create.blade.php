@@ -1,25 +1,25 @@
-    <x-app-layout>
+<x-associate-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Add Service Type') }}
+            {{ __('Add Service') }}
         </h2>
     </x-slot>
 
     <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden p-6">
                 <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
-                    Leave the city empty to create a global service that is available in every city. A service assigned to a city is managed
-                    by that city's associate.
+                    A service you create belongs to one of your cities and is only visible and editable by you.
                 </p>
 
                 <x-service-type-form
-                    :action="route('admin.service-types.store')"
+                    :action="route('associate.service-types.store')"
                     :cities="$cities"
-                    :cancel-url="route('admin.service-types.index')"
+                    :cancel-url="route('associate.service-types.index')"
                     submit-label="Save Service"
+                    :city-required="true"
                 />
             </div>
         </div>
     </div>
-</x-app-layout>
+</x-associate-layout>

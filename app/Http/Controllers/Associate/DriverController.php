@@ -1,24 +1,30 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Associate;
 
 use App\Enums\DriverStatus;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
+/**
+ * The associate manages every driver currently based in one of his cities.
+ */
 class DriverController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request): View
     {
         $drivers = Driver::with(['currentCity', 'user', 'creator'])
+            ->inCities($this->cityIds())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -33,18 +39,18 @@ class DriverController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('admin.drivers.index', [
+        return view('associate.drivers.index', [
             'drivers' => $drivers,
-            'cities' => City::orderBy('name')->get(),
+            'cities' => $this->assignedCities(),
             'statuses' => array_map(fn (DriverStatus $status) => $status->value, DriverStatus::cases()),
         ]);
     }
 
-    public function create()
+    public function create(): View
     {
-        $cities = City::all();
-
-        return view('admin.drivers.create', compact('cities'));
+        return view('associate.drivers.create', [
+            'cities' => $this->assignedCities(),
+        ]);
     }
 
     /**
@@ -52,21 +58,7 @@ class DriverController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'license_number' => 'required|string|unique:drivers',
-            'license_expiry' => 'required|date',
-            'experience_years' => 'nullable|integer|min:0',
-            'current_city_id' => 'required|exists:cities,id',
-            'profile_photo' => 'nullable|image|max:2048',
-            'license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'status' => 'required|string',
-            // Driver login account (dashboard access)
-            'login_id' => 'nullable|alpha_dash|min:3|max:255|unique:users,username',
-            'login_password' => 'nullable|string|min:8|required_with:login_id',
-        ]);
+        $validated = $this->validatedDriverData($request);
 
         if ($request->hasFile('profile_photo')) {
             $validated['profile_photo'] = $request->file('profile_photo')->store('drivers/photos', 'public');
@@ -75,47 +67,39 @@ class DriverController extends Controller
             $validated['license_document'] = $request->file('license_document')->store('drivers/licenses', 'public');
         }
 
+        $validated['created_by'] = auth()->id();
+
         $driver = Driver::create($validated);
 
         $this->saveLoginAccount($driver, $validated);
 
-        return redirect()->route('admin.drivers.index')->with('success', 'Driver created successfully.');
+        return redirect()->route('associate.drivers.index')->with('success', 'Driver created successfully.');
     }
 
-    public function show(Driver $driver)
+    public function show(Driver $driver): View
     {
+        $this->authorizeDriver($driver);
+
         $driver->load(['currentCity', 'leaves', 'user', 'preferredCities']);
 
-        return view('admin.drivers.show', compact('driver'));
+        return view('associate.drivers.show', compact('driver'));
     }
 
-    public function edit(Driver $driver)
+    public function edit(Driver $driver): View
     {
-        $cities = City::all();
+        $this->authorizeDriver($driver);
 
-        return view('admin.drivers.edit', compact('driver', 'cities'));
+        return view('associate.drivers.edit', [
+            'driver' => $driver,
+            'cities' => $this->assignedCities(),
+        ]);
     }
 
     public function update(Request $request, Driver $driver)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'license_number' => 'required|string|unique:drivers,license_number,'.$driver->id,
-            'license_expiry' => 'required|date',
-            'experience_years' => 'nullable|integer|min:0',
-            'current_city_id' => 'required|exists:cities,id',
-            'profile_photo' => 'nullable|image|max:2048',
-            'license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'status' => 'required|string',
-            // Driver login account (dashboard access)
-            'login_id' => [
-                'nullable', 'alpha_dash', 'min:3', 'max:255',
-                Rule::unique('users', 'username')->ignore($driver->user?->id),
-            ],
-            'login_password' => 'nullable|string|min:8',
-        ]);
+        $this->authorizeDriver($driver);
+
+        $validated = $this->validatedDriverData($request, $driver);
 
         if ($request->hasFile('profile_photo')) {
             if ($driver->profile_photo) {
@@ -134,20 +118,51 @@ class DriverController extends Controller
 
         $this->saveLoginAccount($driver, $validated);
 
-        return redirect()->route('admin.drivers.index')->with('success', 'Driver updated successfully.');
+        return redirect()->route('associate.drivers.index')->with('success', 'Driver updated successfully.');
     }
 
     public function destroy(Driver $driver)
     {
+        $this->authorizeDriver($driver);
+
         if ($driver->profile_photo) {
             Storage::disk('public')->delete($driver->profile_photo);
         }
         if ($driver->license_document) {
             Storage::disk('public')->delete($driver->license_document);
         }
+
         $driver->delete();
 
-        return redirect()->route('admin.drivers.index')->with('success', 'Driver deleted successfully.');
+        return redirect()->route('associate.drivers.index')->with('success', 'Driver deleted successfully.');
+    }
+
+    /**
+     * Shared validation for store and update. The driver may only be based in
+     * one of the associate's own cities.
+     *
+     * @return array<string, mixed>
+     */
+    private function validatedDriverData(Request $request, ?Driver $driver = null): array
+    {
+        return $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'email' => 'nullable|email|max:255',
+            'license_number' => 'required|string|unique:drivers,license_number'.($driver ? ','.$driver->id : ''),
+            'license_expiry' => 'required|date',
+            'experience_years' => 'nullable|integer|min:0',
+            'current_city_id' => ['required', Rule::in($this->cityIds())],
+            'profile_photo' => 'nullable|image|max:2048',
+            'license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'status' => 'required|string',
+            // Driver login account (dashboard access)
+            'login_id' => [
+                'nullable', 'alpha_dash', 'min:3', 'max:255',
+                Rule::unique('users', 'username')->ignore($driver?->user?->id),
+            ],
+            'login_password' => 'nullable|string|min:8',
+        ]);
     }
 
     /**
@@ -190,5 +205,37 @@ class DriverController extends Controller
         ]);
 
         $driver->update(['user_id' => $user->id]);
+    }
+
+    /**
+     * Ids of the cities this associate manages.
+     *
+     * @return list<int>
+     */
+    private function cityIds(): array
+    {
+        return auth()->user()->assignedCityIds();
+    }
+
+    /**
+     * The cities shown in every dropdown of this panel.
+     *
+     * @return Collection<int, City>
+     */
+    private function assignedCities()
+    {
+        return auth()->user()->assignedCities()->orderBy('name')->get();
+    }
+
+    /**
+     * Stop the associate from touching a driver of a city he does not manage.
+     */
+    private function authorizeDriver(Driver $driver): void
+    {
+        abort_unless(
+            auth()->user()->managesCity($driver->current_city_id),
+            403,
+            'This driver belongs to a city you do not manage.'
+        );
     }
 }
