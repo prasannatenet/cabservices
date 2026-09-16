@@ -93,6 +93,8 @@ class BookingService
 
     public function assignDriver(Booking $booking, $driverId, $adminId)
     {
+        $this->ensureDriverWillingToGoTo($booking, $driverId);
+
         return DB::transaction(function () use ($booking, $driverId, $adminId) {
             $oldStatus = $booking->status;
 
@@ -123,6 +125,8 @@ class BookingService
 
     public function confirmBooking(Booking $booking, $driverId)
     {
+        $this->ensureDriverWillingToGoTo($booking, $driverId);
+
         return DB::transaction(function () use ($booking, $driverId) {
             $oldStatus = $booking->status;
 
@@ -206,5 +210,32 @@ class BookingService
 
             return $booking;
         });
+    }
+
+    /**
+     * Guard: a driver who selected preferred cities must include the
+     * booking's drop city, otherwise he cannot be assigned to that trip.
+     * Drivers with no preference at all remain assignable everywhere.
+     *
+     * @throws \Exception
+     */
+    protected function ensureDriverWillingToGoTo(Booking $booking, $driverId): void
+    {
+        if (empty($driverId) || empty($booking->drop_city_id)) {
+            return;
+        }
+
+        $driver = Driver::with('preferredCities')->find($driverId);
+
+        if (! $driver) {
+            return;
+        }
+
+        if ($driver->preferredCities->isNotEmpty()
+            && ! $driver->preferredCities->contains('id', (int) $booking->drop_city_id)) {
+            $dropCity = $booking->dropCity?->name ?? 'the drop city';
+
+            throw new \Exception("Driver {$driver->name} is not willing to go to {$dropCity}.");
+        }
     }
 }

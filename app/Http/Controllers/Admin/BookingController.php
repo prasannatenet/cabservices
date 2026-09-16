@@ -46,7 +46,21 @@ class BookingController extends Controller
     {
         $booking->load(['pickupCity', 'dropCity', 'vehicle', 'serviceType', 'driverAssignment.driver']);
 
-        $availableDrivers = Driver::where('status', 'Available')->get();
+        // Only list drivers willing to go to this booking's drop city.
+        // Drivers who selected other cities but not the drop city are hidden.
+        // The currently assigned driver is always kept visible for editing.
+        $availableDrivers = Driver::with(['currentCity', 'preferredCities'])
+            ->where('status', 'Available')
+            ->willingToGoTo($booking->drop_city_id)
+            ->orderBy('name')
+            ->get()
+            ->merge(
+                $booking->driver_id
+                    ? Driver::with(['currentCity', 'preferredCities'])->whereKey($booking->driver_id)->get()
+                    : collect()
+            )
+            ->unique('id')
+            ->values();
         $availableVehicles = Vehicle::with(['images', 'category', 'city'])->where('status', 'Available')->get(); // Basic check, ideally use AvailabilityService
 
         return view('admin.bookings.show', compact('booking', 'availableDrivers', 'availableVehicles'));
@@ -59,6 +73,20 @@ class BookingController extends Controller
             'driver_id' => 'nullable|exists:drivers,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
         ]);
+
+        // Block assigning a driver who is not willing to go to the drop city.
+        // (UI hides such drivers; this stops forged POST requests.)
+        if (! empty($validated['driver_id'])) {
+            $driver = Driver::with('preferredCities')->find($validated['driver_id']);
+
+            if ($driver && $driver->preferredCities->isNotEmpty()
+                && ! $driver->preferredCities->contains('id', $booking->drop_city_id)) {
+                return back()->with(
+                    'error',
+                    'Driver '.$driver->name.' is not willing to go to '.($booking->dropCity->name ?? 'the drop city').'. Please select a driver who prefers that city.'
+                );
+            }
+        }
 
         $statusChanged = $validated['status'] !== $booking->status->value;
         $driverChanged = (isset($validated['driver_id']) && $booking->driver_id != $validated['driver_id']);

@@ -41,6 +41,26 @@ class Driver extends Model
         return $query->whereIn('current_city_id', $cityIds);
     }
 
+    /**
+     * Restrict the query to drivers willing to go to the given drop city.
+     *
+     * A driver is willing when he explicitly selected the city in
+     * "My Cities", or when he has not selected any preferred city yet
+     * (backward compatible: no preference means willing everywhere).
+     * Drivers who selected other cities but not this one are excluded.
+     */
+    public function scopeWillingToGoTo(Builder $query, ?int $cityId): Builder
+    {
+        if (blank($cityId)) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($cityId) {
+            $q->whereHas('preferredCities', fn (Builder $sq) => $sq->where('cities.id', $cityId))
+                ->orWhereDoesntHave('preferredCities');
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

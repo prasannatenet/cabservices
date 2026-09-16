@@ -157,7 +157,14 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <p class="text-xs text-gray-500 mt-1">Required to confirm booking.</p>
+                                    @if($booking->dropCity)
+                                        <p class="text-xs text-gray-500 mt-1">Showing only {{ $availableDrivers->count() }} driver(s) willing to go to {{ $booking->dropCity->name }}. Drivers who did not select this city are hidden.</p>
+                                        @if($availableDrivers->isEmpty())
+                                            <p class="text-xs text-amber-600 mt-1 font-medium">No drivers have selected {{ $booking->dropCity->name }} as a preferred city yet.</p>
+                                        @endif
+                                    @else
+                                        <p class="text-xs text-gray-500 mt-1">Required to confirm booking.</p>
+                                    @endif
                                 </div>
 
                                 <button type="submit" class="w-full mt-4 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
