@@ -33,6 +33,10 @@
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $driver->whatsapp ?? 'N/A' }}</p>
                             </div>
                             <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Alternate Mobile</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ $driver->alternate_phone ?? 'N/A' }}</p>
+                            </div>
+                            <div>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">Email</p>
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $driver->email ?? 'N/A' }}</p>
                             </div>
@@ -59,6 +63,35 @@
                             <div class="md:col-span-2">
                                 <p class="text-sm text-gray-500 dark:text-gray-400">Address</p>
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $driver->address ?? 'N/A' }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Aadhaar Details -->
+                    <div class="bg-white dark:bg-[#161615] shadow-sm rounded-xl border border-gray-100 dark:border-gray-800/60 overflow-hidden p-6">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">Aadhaar Details</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Aadhaar Number</p>
+                                <p class="font-medium text-gray-900 dark:text-white tracking-wide">{{ $driver->formatted_aadhaar_number ?? 'N/A' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Aadhaar Photo</p>
+                                @if($driver->aadhaar_photo)
+                                    <a href="{{ $driver->aadhaar_photo_url }}" target="_blank">
+                                        <img src="{{ $driver->aadhaar_photo_url }}" alt="Aadhaar Photo" class="h-24 w-36 object-cover rounded border border-gray-200 dark:border-gray-700 mt-1">
+                                    </a>
+                                @else
+                                    <p class="font-medium text-gray-900 dark:text-white">N/A</p>
+                                @endif
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Permanent Address</p>
+                                <p class="font-medium text-gray-900 dark:text-white whitespace-pre-line">{{ $driver->permanent_address ?? 'N/A' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Current Address</p>
+                                <p class="font-medium text-gray-900 dark:text-white whitespace-pre-line">{{ $driver->current_address ?? 'N/A' }}</p>
                             </div>
                         </div>
                     </div>

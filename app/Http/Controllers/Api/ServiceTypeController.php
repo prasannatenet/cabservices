@@ -10,6 +10,6 @@ class ServiceTypeController extends Controller
 {
     public function index()
     {
-        return ServiceTypeResource::collection(ServiceType::where('status', 'Active')->get());
+        return ServiceTypeResource::collection(ServiceType::visibleToCustomers()->get());
     }
 }

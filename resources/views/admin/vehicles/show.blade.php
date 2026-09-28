@@ -96,6 +96,23 @@
                     <div class="bg-white dark:bg-[#161615] shadow-sm rounded-xl border border-gray-100 dark:border-gray-800/60 overflow-hidden p-6">
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">Documents</h3>
 
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <x-document-expiry-badge
+                                label="Registration Certificate (RC)"
+                                :status="$vehicle->rcExpiryStatus()"
+                                :days-remaining="$vehicle->rcDaysRemaining()"
+                                :expiry-date="$vehicle->rc_expiry_date"
+                                :issue-date="$vehicle->rc_issue_date"
+                            />
+                            <x-document-expiry-badge
+                                label="Insurance"
+                                :status="$vehicle->insuranceExpiryStatus()"
+                                :days-remaining="$vehicle->insuranceDaysRemaining()"
+                                :expiry-date="$vehicle->insurance_expiry_date"
+                                :issue-date="$vehicle->insurance_issue_date"
+                            />
+                        </div>
+
                         <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Insurance Photos</h4>
                         @if(count($vehicle->insurance_photo ?? []) > 0)
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

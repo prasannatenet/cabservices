@@ -33,6 +33,24 @@
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2">
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white mb-4">Documents</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <x-document-expiry-badge
+                                label="Registration Certificate (RC)"
+                                :status="$vehicle->rcExpiryStatus()"
+                                :days-remaining="$vehicle->rcDaysRemaining()"
+                                :expiry-date="$vehicle->rc_expiry_date"
+                                :issue-date="$vehicle->rc_issue_date"
+                            />
+                            <x-document-expiry-badge
+                                label="Insurance"
+                                :status="$vehicle->insuranceExpiryStatus()"
+                                :days-remaining="$vehicle->insuranceDaysRemaining()"
+                                :expiry-date="$vehicle->insurance_expiry_date"
+                                :issue-date="$vehicle->insurance_issue_date"
+                            />
+                        </div>
+
                         <h3 class="text-base font-bold text-gray-900 dark:text-white mb-4">Vehicle Information</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>

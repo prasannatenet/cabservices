@@ -33,7 +33,7 @@ class VehicleRelocationTest extends TestCase
         parent::setUp();
 
         $this->availability = new AvailabilityService;
-        $this->bookingService = new BookingService;
+        $this->bookingService = app(BookingService::class);
         $this->jaipur = City::factory()->create(['name' => 'Jaipur']);
         $this->udaipur = City::factory()->create(['name' => 'Udaipur']);
         $this->service = ServiceType::factory()->create();

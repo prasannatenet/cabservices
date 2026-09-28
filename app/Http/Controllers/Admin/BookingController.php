@@ -12,6 +12,7 @@ use App\Models\DriverAssignment;
 use App\Models\Vehicle;
 use App\Services\BookingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
@@ -99,7 +100,7 @@ class BookingController extends Controller
 
         // If driver changed but status is not changing, just assign the driver
         if ($driverChanged && ! $statusChanged) {
-            $bookingService->assignDriver($booking, $validated['driver_id'], auth()->id() ?? 1);
+            $bookingService->assignDriver($booking, $validated['driver_id'], Auth::id() ?? 1);
         }
 
         if ($statusChanged) {
@@ -117,7 +118,7 @@ class BookingController extends Controller
                 }
             } elseif ($validated['status'] === BookingStatus::TRIP_COMPLETED->value && $booking->status !== BookingStatus::TRIP_COMPLETED) {
                 try {
-                    $bookingService->completeTrip($booking, auth()->id() ?? 1);
+                    $bookingService->completeTrip($booking, Auth::id() ?? 1);
 
                     return back()->with('success', 'Trip Completed. Vehicle and driver are now available from '.($booking->dropCity->name ?? 'the drop city').'.');
                 } catch (\Exception $e) {
@@ -140,7 +141,7 @@ class BookingController extends Controller
                         'booking_id' => $booking->id,
                         'driver_id' => $booking->driver_id,
                         'vehicle_id' => $booking->vehicle_id,
-                        'assigned_by' => auth()->id() ?? 1,
+                        'assigned_by' => Auth::id() ?? 1,
                         'status' => 'Active',
                     ]);
                 }
@@ -150,7 +151,7 @@ class BookingController extends Controller
                     'booking_id' => $booking->id,
                     'old_status' => $oldStatus->value,
                     'new_status' => $validated['status'],
-                    'changed_by' => auth()->id() ?? 1,
+                    'changed_by' => Auth::id() ?? 1,
                     'remarks' => 'Status manually updated.',
                 ]);
             }

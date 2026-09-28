@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\ServiceType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class ServiceTypeController extends Controller
@@ -22,6 +23,9 @@ class ServiceTypeController extends Controller
             })
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
             ->when($request->filled('city_id'), fn ($query) => $query->where('city_id', $request->query('city_id')))
+            ->when($request->filled('approval'), function ($query) use ($request) {
+                $query->where('is_approved', $request->query('approval') === 'pending' ? false : true);
+            })
             ->paginate(15)
             ->withQueryString();
 
@@ -55,7 +59,9 @@ class ServiceTypeController extends Controller
             $validated['image'] = $request->file('image')->store('service-types', 'public');
         }
 
-        $validated['created_by'] = auth()->id();
+        $validated['created_by'] = Auth::id();
+        // Admin-created services are approved by default.
+        $validated['is_approved'] = true;
 
         ServiceType::create($validated);
 
@@ -79,6 +85,7 @@ class ServiceTypeController extends Controller
             'image' => 'nullable|image|max:2048',
             'status' => 'required|in:Active,Inactive',
             'city_id' => 'nullable|exists:cities,id',
+            'is_approved' => 'sometimes|boolean',
         ]);
 
         if ($request->hasFile('image')) {
@@ -91,6 +98,13 @@ class ServiceTypeController extends Controller
         $serviceType->update($validated);
 
         return redirect()->route('admin.service-types.index')->with('success', 'Service updated successfully.');
+    }
+
+    public function approve(Request $request, ServiceType $serviceType)
+    {
+        $serviceType->update(['is_approved' => true]);
+
+        return back()->with('success', 'Service approved and published to customers.');
     }
 
     public function destroy(ServiceType $serviceType)

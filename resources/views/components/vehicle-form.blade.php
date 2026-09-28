@@ -133,6 +133,38 @@
     <p class="text-xs text-gray-500 dark:text-gray-400">Price per Day applies with the Fixed KM per Day limit; extra KM can be charged at the per KM rate.</p>
 
     <div>
+        <x-input-label value="Registration Certificate (RC)" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-1">
+            <div>
+                <x-input-label for="rc_issue_date" :value="__('RC Issue Date')" />
+                <x-text-input id="rc_issue_date" class="block mt-1 w-full" type="date" name="rc_issue_date" :value="old('rc_issue_date', $vehicle?->rc_issue_date?->format('Y-m-d'))" />
+                <x-input-error :messages="$errors->get('rc_issue_date')" class="mt-2" />
+            </div>
+            <div>
+                <x-input-label for="rc_expiry_date" :value="__('RC Expiry Date')" />
+                <x-text-input id="rc_expiry_date" class="block mt-1 w-full" type="date" name="rc_expiry_date" :value="old('rc_expiry_date', $vehicle?->rc_expiry_date?->format('Y-m-d'))" />
+                <x-input-error :messages="$errors->get('rc_expiry_date')" class="mt-2" />
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <x-input-label value="Insurance" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-1">
+            <div>
+                <x-input-label for="insurance_issue_date" :value="__('Insurance Issue Date')" />
+                <x-text-input id="insurance_issue_date" class="block mt-1 w-full" type="date" name="insurance_issue_date" :value="old('insurance_issue_date', $vehicle?->insurance_issue_date?->format('Y-m-d'))" />
+                <x-input-error :messages="$errors->get('insurance_issue_date')" class="mt-2" />
+            </div>
+            <div>
+                <x-input-label for="insurance_expiry_date" :value="__('Insurance Expiry Date')" />
+                <x-text-input id="insurance_expiry_date" class="block mt-1 w-full" type="date" name="insurance_expiry_date" :value="old('insurance_expiry_date', $vehicle?->insurance_expiry_date?->format('Y-m-d'))" />
+                <x-input-error :messages="$errors->get('insurance_expiry_date')" class="mt-2" />
+            </div>
+        </div>
+    </div>
+
+    <div>
         <x-input-label value="Insurance Photos" />
         @if($vehicle && count($vehicle->insurance_photo ?? []) > 0)
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 mb-4">

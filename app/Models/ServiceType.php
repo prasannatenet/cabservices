@@ -13,7 +13,15 @@ class ServiceType extends Model
     /** @use HasFactory<ServiceTypeFactory> */
     use HasFactory;
 
-    protected $fillable = ['city_id', 'created_by', 'name', 'description', 'image', 'status', 'display_order'];
+    protected $fillable = ['city_id', 'created_by', 'name', 'description', 'image', 'status', 'is_approved', 'display_order'];
+
+    /**
+     * Restrict the query to services visible to customers: status Active and approved by admin.
+     */
+    public function scopeVisibleToCustomers(Builder $query): Builder
+    {
+        return $query->where('status', 'Active')->where('is_approved', true);
+    }
 
     /**
      * The city this service belongs to (null = a global service created by the admin).

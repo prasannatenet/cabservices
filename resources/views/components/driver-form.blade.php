@@ -27,6 +27,13 @@
         </div>
 
         <div>
+            <x-input-label for="alternate_phone" :value="__('Alternate Mobile Number (Optional)')" />
+            <x-text-input id="alternate_phone" class="block mt-1 w-full" type="text" name="alternate_phone" :value="old('alternate_phone', $driver?->alternate_phone)" />
+            <p class="text-xs text-gray-500 mt-1">A second number the driver can always be reached on.</p>
+            <x-input-error :messages="$errors->get('alternate_phone')" class="mt-2" />
+        </div>
+
+        <div>
             <x-input-label for="email" :value="__('Email Address (Optional)')" />
             <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $driver?->email)" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
@@ -71,6 +78,50 @@
                 <option value="Inactive" @selected(old('status', $driver?->status) === 'Inactive')>Inactive</option>
             </select>
             <x-input-error :messages="$errors->get('status')" class="mt-2" />
+        </div>
+    </div>
+
+    <!-- Aadhaar Details (Identity Proof) -->
+    <div class="pt-6 border-t border-gray-100 dark:border-gray-800/60 space-y-6">
+        <div>
+            <h3 class="text-base font-bold text-gray-900 dark:text-white font-display">Aadhaar Details</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Identity proof of the driver, collected at onboarding.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <x-input-label for="aadhaar_number" :value="__('Aadhaar Number')" />
+                <x-text-input id="aadhaar_number" class="block mt-1 w-full" type="text" name="aadhaar_number" inputmode="numeric" maxlength="14" placeholder="1234 5678 9012" :value="old('aadhaar_number', $driver?->formatted_aadhaar_number)" />
+                <p class="text-xs text-gray-500 mt-1">12 digit Aadhaar number. Must be unique across drivers.</p>
+                <x-input-error :messages="$errors->get('aadhaar_number')" class="mt-2" />
+            </div>
+
+            <div>
+                <x-input-label for="aadhaar_photo" :value="__('Aadhaar Photo')" />
+                @if($driver?->aadhaar_photo)
+                    <div class="mb-2">
+                        <img src="{{ $driver->aadhaar_photo_url }}" alt="Current Aadhaar Photo" class="h-20 w-32 object-cover rounded border border-gray-200 dark:border-gray-700">
+                    </div>
+                @endif
+                <input id="aadhaar_photo" type="file" name="aadhaar_photo" accept="image/*" class="block mt-1 w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:text-gray-300 dark:file:bg-gray-800 dark:file:text-gray-300" />
+                @if($driver)
+                    <p class="text-xs text-gray-500 mt-1">Leave blank to keep current photo</p>
+                @endif
+                <p class="text-xs text-gray-500 mt-1">Max size: 2MB</p>
+                <x-input-error :messages="$errors->get('aadhaar_photo')" class="mt-2" />
+            </div>
+        </div>
+
+        <div>
+            <x-input-label for="permanent_address" :value="__('Permanent Address')" />
+            <textarea id="permanent_address" name="permanent_address" rows="3" placeholder="House / Street / Area, City, State, PIN" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm">{{ old('permanent_address', $driver?->permanent_address) }}</textarea>
+            <x-input-error :messages="$errors->get('permanent_address')" class="mt-2" />
+        </div>
+
+        <div>
+            <x-input-label for="current_address" :value="__('Current Address')" />
+            <textarea id="current_address" name="current_address" rows="3" placeholder="Where the driver currently stays" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm">{{ old('current_address', $driver?->current_address) }}</textarea>
+            <x-input-error :messages="$errors->get('current_address')" class="mt-2" />
         </div>
     </div>
 

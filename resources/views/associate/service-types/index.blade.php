@@ -27,6 +27,14 @@
                                 <option value="Inactive" @selected(request('status') === 'Inactive')>Inactive</option>
                             </select>
                         </div>
+                                                 <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Approval</label>
+                            <select name="approval" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">All</option>
+                                <option value="pending" @selected(request('approval') === 'pending')>Pending Approval</option>
+                                <option value="approved" @selected(request('approval') === 'approved')>Approved</option>
+                            </select>
+                                                </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">City</label>
                             <select name="city_id" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
@@ -34,6 +42,14 @@
                                 @foreach($cities as $city)
                                     <option value="{{ $city->id }}" @selected(request('city_id') == $city->id)>{{ $city->name }}</option>
                                 @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Approval</label>
+                            <select name="approval" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">All</option>
+                                <option value="pending" @selected(request('approval') === 'pending')>Pending Approval</option>
+                                <option value="approved" @selected(request('approval') === 'approved')>Approved</option>
                             </select>
                         </div>
                     </x-admin-filter-bar>
@@ -47,7 +63,8 @@
                                 <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
                                 <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">City</th>
                                 <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Order</th>
-                                <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                                                <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Approval</th>
                                 <th scope="col" class="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>

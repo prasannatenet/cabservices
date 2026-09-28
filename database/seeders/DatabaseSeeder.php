@@ -53,7 +53,11 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($services as $serviceName) {
-            ServiceType::factory()->create(['name' => $serviceName]);
+            ServiceType::factory()->create([
+                'name' => $serviceName,
+                'is_approved' => true, // Seeded services should be visible
+                'status' => 'Active',
+            ]);
         }
 
         foreach ($cities as $city) {

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Driver;
 
+use App\Enums\AssignmentResponseStatus;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Driver;
+use App\Models\DriverAssignment;
+use App\Services\AssignmentResponseService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -46,6 +49,10 @@ class DashboardController extends Controller
             'driver' => $driver->load('currentCity'),
             'metrics' => $metrics,
             'upcomingBookings' => $upcomingBookings,
+            'pendingAssignments' => $driver->pendingAssignments()
+                ->with('booking.pickupCity', 'booking.dropCity')
+                ->orderBy('response_deadline')
+                ->get(),
         ]);
     }
 
@@ -84,6 +91,82 @@ class DashboardController extends Controller
             'rides' => $rides,
             'statuses' => array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
         ]);
+    }
+
+    /**
+     * The assignments currently waiting for this driver's answer.
+     */
+    public function pendingAssignments(): View
+    {
+        $driver = $this->authDriver();
+
+        $assignments = $driver->driverAssignments()
+            ->with(['booking.pickupCity', 'booking.dropCity', 'booking.vehicle', 'booking.serviceType'])
+            ->where('response_status', AssignmentResponseStatus::Pending->value)
+            ->where('response_deadline', '>', now())
+            ->latest('response_deadline')
+            ->get();
+
+        return view('driver.assignments', [
+            'driver' => $driver,
+            'assignments' => $assignments,
+        ]);
+    }
+
+    /**
+     * The driver confirms he will take the ride.
+     */
+    public function acceptAssignment(
+        DriverAssignment $assignment,
+        AssignmentResponseService $responses
+    ): RedirectResponse {
+        $this->authorizeAssignment($assignment);
+
+        try {
+            $responses->accept($assignment);
+        } catch (\Exception $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'You accepted the ride. The customer has been notified.');
+    }
+
+    /**
+     * The driver refuses the ride and gives the admin a reason.
+     */
+    public function rejectAssignment(
+        Request $request,
+        DriverAssignment $assignment,
+        AssignmentResponseService $responses
+    ): RedirectResponse {
+        $this->authorizeAssignment($assignment);
+
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'min:5', 'max:1000'],
+        ], [
+            'rejection_reason.required' => 'Please tell the admin why you are rejecting this ride.',
+            'rejection_reason.min' => 'Please give a little more detail (at least 5 characters).',
+        ]);
+
+        try {
+            $responses->reject($assignment, $validated['rejection_reason']);
+        } catch (\Exception $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'You rejected the ride. The admin has been notified.');
+    }
+
+    /**
+     * Stop a driver from answering an assignment that belongs to someone else.
+     */
+    private function authorizeAssignment(DriverAssignment $assignment): void
+    {
+        abort_unless(
+            $assignment->driver_id === $this->authDriver()->id,
+            403,
+            'This ride was not assigned to you.'
+        );
     }
 
     /**

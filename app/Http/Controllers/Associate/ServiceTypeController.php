@@ -7,6 +7,7 @@ use App\Models\City;
 use App\Models\ServiceType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -28,6 +29,9 @@ class ServiceTypeController extends Controller
             })
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
             ->when($request->filled('city_id'), fn ($query) => $query->where('city_id', $request->query('city_id')))
+            ->when($request->filled('approval'), function ($query) use ($request) {
+                $query->where('is_approved', $request->query('approval') === 'pending' ? false : true);
+            })
             ->paginate(15)
             ->withQueryString();
 
@@ -52,11 +56,13 @@ class ServiceTypeController extends Controller
             $validated['image'] = $request->file('image')->store('service-types', 'public');
         }
 
-        $validated['created_by'] = auth()->id();
+        $validated['created_by'] = Auth::id();
+        // Associate-created services must be approved by the admin before going live.
+        $validated['is_approved'] = false;
 
         ServiceType::create($validated);
 
-        return redirect()->route('associate.service-types.index')->with('success', 'Service created successfully.');
+        return redirect()->route('associate.service-types.index')->with('success', 'Service created. It will be visible to customers once an admin approves it.');
     }
 
     public function edit(ServiceType $serviceType): View
@@ -82,9 +88,12 @@ class ServiceTypeController extends Controller
             $validated['image'] = $request->file('image')->store('service-types', 'public');
         }
 
+        // An associate can never self-publish — changes must be re-approved.
+        $validated['is_approved'] = false;
+
         $serviceType->update($validated);
 
-        return redirect()->route('associate.service-types.index')->with('success', 'Service updated successfully.');
+        return redirect()->route('associate.service-types.index')->with('success', 'Service updated. Changes are pending admin approval.');
     }
 
     public function destroy(ServiceType $serviceType)
@@ -124,7 +133,7 @@ class ServiceTypeController extends Controller
      */
     private function cityIds(): array
     {
-        return auth()->user()->assignedCityIds();
+        return Auth::user()->assignedCityIds();
     }
 
     /**
@@ -132,7 +141,7 @@ class ServiceTypeController extends Controller
      */
     private function assignedCities()
     {
-        return auth()->user()->assignedCities()->orderBy('name')->get();
+        return Auth::user()->assignedCities()->orderBy('name')->get();
     }
 
     /**
@@ -141,7 +150,7 @@ class ServiceTypeController extends Controller
     private function authorizeService(ServiceType $serviceType): void
     {
         abort_unless(
-            auth()->user()->managesCity($serviceType->city_id),
+            Auth::user()->managesCity($serviceType->city_id),
             403,
             'This service belongs to a city you do not manage.'
         );

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssignmentResponseStatus;
 use App\Enums\DriverStatus;
 use Database\Factories\DriverFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,10 +19,62 @@ class Driver extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'phone', 'whatsapp', 'email', 'address', 'user_id', 'created_by',
+        'name', 'phone', 'whatsapp', 'alternate_phone', 'email', 'address', 'user_id', 'created_by',
         'license_number', 'license_expiry', 'license_document', 'experience_years', 'profile_photo',
+        'aadhaar_number', 'aadhaar_photo', 'permanent_address', 'current_address',
         'current_city_id', 'status',
     ];
+
+    /**
+     * Aadhaar is a 12 digit number, optionally written as XXXX XXXX XXXX.
+     */
+    protected static function normalizeAadhaarNumber(?string $aadhaarNumber): ?string
+    {
+        if (blank($aadhaarNumber)) {
+            return null;
+        }
+
+        return preg_replace('/\D+/', '', $aadhaarNumber);
+    }
+
+    /**
+     * Store the Aadhaar number without spaces so the unique index and lookups
+     * work regardless of how it was typed.
+     */
+    public function setAadhaarNumberAttribute(?string $value): void
+    {
+        $this->attributes['aadhaar_number'] = static::normalizeAadhaarNumber($value);
+    }
+
+    /**
+     * The Aadhaar number as XXXX XXXX XXXX for display.
+     */
+    public function getFormattedAadhaarNumberAttribute(): ?string
+    {
+        if (blank($this->aadhaar_number)) {
+            return null;
+        }
+
+        return trim(chunk_split($this->aadhaar_number, 4, ' '));
+    }
+
+    /**
+     * Public URL of the uploaded Aadhaar photo, or null when none was uploaded.
+     */
+    public function getAadhaarPhotoUrlAttribute(): ?string
+    {
+        return $this->aadhaar_photo ? asset('storage/'.$this->aadhaar_photo) : null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'license_expiry' => 'date',
+        ];
+    }
 
     /**
      * The admin or associate who added the driver.
@@ -79,6 +132,24 @@ class Driver extends Model
     public function bookings()
     {
         return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * Every ride ever assigned to this driver, newest first.
+     */
+    public function driverAssignments()
+    {
+        return $this->hasMany(DriverAssignment::class);
+    }
+
+    /**
+     * Assignments still waiting for this driver to accept or refuse.
+     */
+    public function pendingAssignments()
+    {
+        return $this->driverAssignments()
+            ->where('response_status', AssignmentResponseStatus::Pending->value)
+            ->where('response_deadline', '>', now());
     }
 
     public function leaves()

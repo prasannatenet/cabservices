@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\DriverLeaveController;
 use App\Http\Controllers\Admin\NearbyCityController;
 use App\Http\Controllers\Admin\ServiceTypeController;
+use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\VehicleCategoryController;
 use App\Http\Controllers\Admin\VehicleController;
 use App\Http\Controllers\Associate\BookingController as AssociateBookingController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\Associate\DriverLeaveController as AssociateDriverLeave
 use App\Http\Controllers\Associate\ServiceTypeController as AssociateServiceTypeController;
 use App\Http\Controllers\Associate\VehicleController as AssociateVehicleController;
 use App\Http\Controllers\Driver\DashboardController as DriverDashboardController;
+use App\Http\Controllers\Driver\ProfileController as DriverProfileController;
 
 // Admin Routes (Protected)
 Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('admin.')->group(function () {
@@ -51,6 +53,11 @@ Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('ad
 
     Route::resource('vehicle-categories', VehicleCategoryController::class)->except(['show']);
     Route::resource('service-types', ServiceTypeController::class)->except(['show']);
+    Route::post('service-types/{serviceType}/approve', [ServiceTypeController::class, 'approve'])->name('service-types.approve');
+
+    Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
+    Route::put('settings/mail', [SettingController::class, 'update'])->name('settings.update');
+    Route::post('settings/mail/test', [SettingController::class, 'sendTestMail'])->name('settings.test-mail');
 
     Route::get('drivers/{driver}/leaves', [DriverLeaveController::class, 'index'])->name('drivers.leaves');
     Route::post('drivers/{driver}/leaves', [DriverLeaveController::class, 'store'])->name('drivers.leaves.store');
@@ -69,6 +76,13 @@ Route::middleware(['auth', 'role:driver'])->prefix('driver')->name('driver.')->g
     Route::get('/rides', [DriverDashboardController::class, 'rides'])->name('rides');
     Route::get('/cities', [DriverDashboardController::class, 'cities'])->name('cities');
     Route::post('/cities', [DriverDashboardController::class, 'syncCities'])->name('cities.sync');
+
+    Route::get('/profile', [DriverProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [DriverProfileController::class, 'update'])->name('profile.update');
+
+    Route::get('/assignments', [DriverDashboardController::class, 'pendingAssignments'])->name('assignments.index');
+    Route::post('/assignments/{assignment}/accept', [DriverDashboardController::class, 'acceptAssignment'])->name('assignments.accept');
+    Route::post('/assignments/{assignment}/reject', [DriverDashboardController::class, 'rejectAssignment'])->name('assignments.reject');
 });
 
 // Associate Portal Routes (Protected)

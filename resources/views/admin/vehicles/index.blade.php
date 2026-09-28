@@ -62,6 +62,7 @@
                                 <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Registration Number</th>
                                 <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">City</th>
                                 <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Documents</th>
                                 <th scope="col" class="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
@@ -91,6 +92,22 @@
                                         @else bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900/50 @endif">
                                         {{ $vehicle->status }}
                                     </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex flex-col gap-1 items-start">
+                                        <x-document-expiry-badge
+                                            compact
+                                            label="RC"
+                                            :status="$vehicle->rcExpiryStatus()"
+                                            :days-remaining="$vehicle->rcDaysRemaining()"
+                                        />
+                                        <x-document-expiry-badge
+                                            compact
+                                            label="Insurance"
+                                            :status="$vehicle->insuranceExpiryStatus()"
+                                            :days-remaining="$vehicle->insuranceDaysRemaining()"
+                                        />
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <a href="{{ route('admin.vehicles.show', $vehicle) }}" class="text-blue-600 hover:text-blue-900 dark:text-blue-400">View</a>

@@ -52,12 +52,19 @@ class DriverController extends Controller
      */
     public function store(Request $request)
     {
+        $this->normalizeAadhaarInput($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
+            'alternate_phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'license_number' => 'required|string|unique:drivers',
             'license_expiry' => 'required|date',
+            'aadhaar_number' => 'nullable|string|size:12|unique:drivers,aadhaar_number',
+            'aadhaar_photo' => 'nullable|image|max:2048',
+            'permanent_address' => 'nullable|string|max:1000',
+            'current_address' => 'nullable|string|max:1000',
             'experience_years' => 'nullable|integer|min:0',
             'current_city_id' => 'required|exists:cities,id',
             'profile_photo' => 'nullable|image|max:2048',
@@ -73,6 +80,9 @@ class DriverController extends Controller
         }
         if ($request->hasFile('license_document')) {
             $validated['license_document'] = $request->file('license_document')->store('drivers/licenses', 'public');
+        }
+        if ($request->hasFile('aadhaar_photo')) {
+            $validated['aadhaar_photo'] = $request->file('aadhaar_photo')->store('drivers/aadhaar', 'public');
         }
 
         $driver = Driver::create($validated);
@@ -98,12 +108,22 @@ class DriverController extends Controller
 
     public function update(Request $request, Driver $driver)
     {
+        $this->normalizeAadhaarInput($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
+            'alternate_phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'license_number' => 'required|string|unique:drivers,license_number,'.$driver->id,
             'license_expiry' => 'required|date',
+            'aadhaar_number' => [
+                'nullable', 'string', 'size:12',
+                Rule::unique('drivers', 'aadhaar_number')->ignore($driver->id),
+            ],
+            'aadhaar_photo' => 'nullable|image|max:2048',
+            'permanent_address' => 'nullable|string|max:1000',
+            'current_address' => 'nullable|string|max:1000',
             'experience_years' => 'nullable|integer|min:0',
             'current_city_id' => 'required|exists:cities,id',
             'profile_photo' => 'nullable|image|max:2048',
@@ -129,6 +149,12 @@ class DriverController extends Controller
             }
             $validated['license_document'] = $request->file('license_document')->store('drivers/licenses', 'public');
         }
+        if ($request->hasFile('aadhaar_photo')) {
+            if ($driver->aadhaar_photo) {
+                Storage::disk('public')->delete($driver->aadhaar_photo);
+            }
+            $validated['aadhaar_photo'] = $request->file('aadhaar_photo')->store('drivers/aadhaar', 'public');
+        }
 
         $driver->update($validated);
 
@@ -145,9 +171,27 @@ class DriverController extends Controller
         if ($driver->license_document) {
             Storage::disk('public')->delete($driver->license_document);
         }
+        if ($driver->aadhaar_photo) {
+            Storage::disk('public')->delete($driver->aadhaar_photo);
+        }
         $driver->delete();
 
         return redirect()->route('admin.drivers.index')->with('success', 'Driver deleted successfully.');
+    }
+
+    /**
+     * Strip formatting from the Aadhaar number before validation, so a value
+     * typed as "1234 5678 9012" is stored and validated as 12 digits.
+     */
+    private function normalizeAadhaarInput(Request $request): void
+    {
+        $aadhaarNumber = $request->input('aadhaar_number');
+
+        $request->merge([
+            'aadhaar_number' => blank($aadhaarNumber)
+                ? null
+                : preg_replace('/\D+/', '', (string) $aadhaarNumber),
+        ]);
     }
 
     /**

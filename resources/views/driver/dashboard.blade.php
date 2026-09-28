@@ -16,6 +16,26 @@
 
     <div class="space-y-8">
 
+        <!-- Pending assignment alerts -->
+        @forelse($pendingAssignments as $pending)
+            @php $minutesLeft = $pending->minutesRemaining(); @endphp
+            <a href="{{ route('driver.assignments.index') }}" class="block bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800 rounded-2xl p-5 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-bold text-amber-900 dark:text-amber-200">
+                            New ride waiting for your response &mdash; {{ $pending->booking?->booking_number }}
+                        </p>
+                        <p class="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+                            {{ optional($pending->booking?->pickupCity)->name }} &rarr; {{ optional($pending->booking?->dropCity)->name }}
+                        </p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100 whitespace-nowrap">
+                        {{ intdiv($minutesLeft, 60) }}h {{ $minutesLeft % 60 }}m left to respond
+                    </span>
+                </div>
+            </a>
+        @endforeach
+
         <!-- Availability -->
         <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden p-6">
             <div class="flex flex-wrap items-center justify-between gap-4">

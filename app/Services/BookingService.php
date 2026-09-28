@@ -8,14 +8,17 @@ use App\Models\BookingStatusHistory;
 use App\Models\Driver;
 use App\Models\DriverAssignment;
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class BookingService
 {
+    public function __construct(protected MailNotificationService $mailNotifications) {}
+
     public function createBookingRequest(array $data)
     {
-        return DB::transaction(function () use ($data) {
+        $booking = DB::transaction(function () use ($data) {
             $bookingNumber = 'BKG-'.strtoupper(Str::random(8));
 
             $booking = Booking::create(array_merge($data, [
@@ -31,6 +34,10 @@ class BookingService
 
             return $booking;
         });
+
+        $this->mailNotifications->notifyBookingRequested($booking);
+
+        return $booking;
     }
 
     public function approveBooking(Booking $booking, $adminId)
@@ -95,7 +102,7 @@ class BookingService
     {
         $this->ensureDriverWillingToGoTo($booking, $driverId);
 
-        return DB::transaction(function () use ($booking, $driverId, $adminId) {
+        $booking = DB::transaction(function () use ($booking, $driverId, $adminId) {
             $oldStatus = $booking->status;
 
             $booking->update([
@@ -103,13 +110,16 @@ class BookingService
                 'driver_id' => $driverId,
             ]);
 
-            DriverAssignment::create([
+            $assignment = DriverAssignment::create([
                 'booking_id' => $booking->id,
                 'driver_id' => $driverId,
                 'vehicle_id' => $booking->vehicle_id,
                 'assigned_by' => $adminId,
                 'status' => 'Active',
             ]);
+
+            // The driver now has a limited window to accept or refuse the ride.
+            $assignment->startResponseWindow();
 
             BookingStatusHistory::create([
                 'booking_id' => $booking->id,
@@ -121,13 +131,17 @@ class BookingService
 
             return $booking;
         });
+
+        $this->mailNotifications->notifyDriverAssigned($booking);
+
+        return $booking;
     }
 
     public function confirmBooking(Booking $booking, $driverId)
     {
         $this->ensureDriverWillingToGoTo($booking, $driverId);
 
-        return DB::transaction(function () use ($booking, $driverId) {
+        $booking = DB::transaction(function () use ($booking, $driverId) {
             $oldStatus = $booking->status;
 
             $booking->update([
@@ -140,7 +154,7 @@ class BookingService
                     'booking_id' => $booking->id,
                     'driver_id' => $driverId,
                     'vehicle_id' => $booking->vehicle_id,
-                    'assigned_by' => auth()->id() ?? 1, // Fallback for tests
+                    'assigned_by' => Auth::id() ?? 1, // Fallback for tests
                     'status' => 'Active',
                 ]);
             }
@@ -149,12 +163,18 @@ class BookingService
                 'booking_id' => $booking->id,
                 'old_status' => $oldStatus,
                 'new_status' => BookingStatus::CONFIRMED->value,
-                'changed_by' => auth()->id() ?? 1,
+                'changed_by' => Auth::id() ?? 1,
                 'remarks' => 'Booking confirmed and driver assigned.',
             ]);
 
             return $booking;
         });
+
+        if ($driverId) {
+            $this->mailNotifications->notifyDriverAssigned($booking);
+        }
+
+        return $booking;
     }
 
     public function cancelBooking(Booking $booking)
@@ -170,7 +190,7 @@ class BookingService
                 'booking_id' => $booking->id,
                 'old_status' => $oldStatus,
                 'new_status' => BookingStatus::CANCELLED->value,
-                'changed_by' => auth()->id() ?? 1,
+                'changed_by' => Auth::id() ?? 1,
                 'remarks' => 'Booking cancelled.',
             ]);
 
