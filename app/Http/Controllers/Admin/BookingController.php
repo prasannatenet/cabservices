@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\BookingStatus;
+use App\Enums\RejectionSource;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
@@ -19,7 +20,7 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        $bookings = Booking::with(['pickupCity', 'dropCity'])
+        $bookings = Booking::with(['pickupCity', 'dropCity', 'driverAssignment.driver'])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -28,7 +29,18 @@ class BookingController extends Controller
                         ->orWhere('customer_phone', 'like', "%{$search}%");
                 });
             })
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
+            ->when($request->filled('status'), function ($query) use ($request) {
+                // "Driver Rejected" is a label rather than a stored status: both
+                // rejections share BookingStatus::Rejected and differ only in
+                // who caused it, so filter on the source as well.
+                if ($request->query('status') === Booking::DRIVER_REJECTED_LABEL) {
+                    $query->rejectedByDriver();
+
+                    return;
+                }
+
+                $query->where('status', $request->query('status'));
+            })
             ->when($request->filled('pickup_city_id'), fn ($query) => $query->where('pickup_city_id', $request->query('pickup_city_id')))
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('pickup_date', '>=', $request->query('date_from')))
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('pickup_date', '<=', $request->query('date_to')))
@@ -39,13 +51,18 @@ class BookingController extends Controller
         return view('admin.bookings.index', [
             'bookings' => $bookings,
             'cities' => City::orderBy('name')->get(),
-            'statuses' => array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
+            // The plain "Rejected" option keeps every rejected ride, the extra
+            // option narrows it down to the ones the driver refused.
+            'statuses' => [
+                ...array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
+                Booking::DRIVER_REJECTED_LABEL,
+            ],
         ]);
     }
 
     public function show(Booking $booking)
     {
-        $booking->load(['pickupCity', 'dropCity', 'vehicle', 'serviceType', 'driverAssignment.driver']);
+        $booking->load(['pickupCity', 'dropCity', 'vehicle', 'serviceType', 'driverAssignment.driver', 'driverAssignments.driver', 'rideExpenses.driver']);
 
         // Only list drivers willing to go to this booking's drop city.
         // Drivers who selected other cities but not the drop city are hidden.
@@ -135,6 +152,12 @@ class BookingController extends Controller
             } else {
                 $oldStatus = $booking->status;
                 $booking->status = $validated['status'];
+                // Choosing Rejected here rejects the ride on the admin's behalf,
+                // while moving to any other status retires the earlier refusal,
+                // so the label always follows the status the admin just picked.
+                $booking->rejection_source = $validated['status'] === BookingStatus::REJECTED->value
+                    ? RejectionSource::Admin
+                    : null;
                 if ($driverChanged) {
                     $booking->driver_id = $validated['driver_id'];
                     DriverAssignment::create([

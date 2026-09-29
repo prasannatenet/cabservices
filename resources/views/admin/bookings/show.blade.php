@@ -99,6 +99,241 @@
                         </div>
                     </div>
 
+                    <!-- Trip Sheet: the odometer proof the driver sends when he starts and when he ends the ride -->
+                    <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden p-6">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Trip Sheet &mdash; Odometer Readings</h3>
+                            @if($booking->tripDistanceKm() !== null || $booking->hasTripFare())
+                                <div class="text-right">
+                                    @if($booking->tripDistanceKm() !== null)
+                                        <p class="text-sm font-bold text-gray-900 dark:text-white">Total Distance {{ number_format($booking->tripDistanceKm()) }} km</p>
+                                    @endif
+                                    @if($booking->hasTripFare())
+                                        <p class="text-sm font-bold text-gray-900 dark:text-white">Total Amount {{ number_format((float) $booking->total_amount, 2) }}</p>
+                                    @endif
+                                </div>
+                            @endif
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Odometer at Start</p>
+                                @if($booking->start_odometer_km !== null)
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ number_format($booking->start_odometer_km) }} km</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Trip started {{ $booking->trip_started_at?->format('d M, Y \a\t h:i A') }}
+                                    </p>
+                                @else
+                                    <p class="font-medium text-gray-500 dark:text-gray-400">Not recorded &mdash; the driver has not started the ride yet.</p>
+                                @endif
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Odometer at End</p>
+                                @if($booking->end_odometer_km !== null)
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ number_format($booking->end_odometer_km) }} km</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Trip ended {{ $booking->trip_ended_at?->format('d M, Y \a\t h:i A') }}
+                                    </p>
+                                @else
+                                    <p class="font-medium text-gray-500 dark:text-gray-400">Not recorded &mdash; the ride has not ended yet.</p>
+                                @endif
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Total Distance</p>
+                                @if($booking->tripDistanceKm() !== null)
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ number_format($booking->tripDistanceKm()) }} km</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Closing reading minus starting reading.</p>
+                                @else
+                                    <p class="font-medium text-gray-500 dark:text-gray-400">Worked out once both readings are in.</p>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Photo at Start</p>
+                                @if($booking->startOdometerPhotoUrl())
+                                    <a href="{{ $booking->startOdometerPhotoUrl() }}" target="_blank" class="inline-block">
+                                        <img src="{{ $booking->startOdometerPhotoUrl() }}" alt="Odometer at start"
+                                            class="w-48 h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                                    </a>
+                                @else
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No odometer photo uploaded.</p>
+                                @endif
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Photo at End</p>
+                                @if($booking->endOdometerPhotoUrl())
+                                    <a href="{{ $booking->endOdometerPhotoUrl() }}" target="_blank" class="inline-block">
+                                        <img src="{{ $booking->endOdometerPhotoUrl() }}" alt="Odometer at end"
+                                            class="w-48 h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700">
+                                    </a>
+                                @else
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No odometer photo uploaded.</p>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- The bill: the rate card of the vehicle applied to the distance the ride covered -->
+                        @php $fare = $booking->tripFare(); @endphp
+                        <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <h4 class="text-sm font-bold text-gray-900 dark:text-white">Amount Billed</h4>
+                                @if($fare)
+                                    <p class="text-lg font-bold text-gray-900 dark:text-white">{{ number_format($fare['total_amount'], 2) }}</p>
+                                @endif
+                            </div>
+
+                            @if($fare)
+                                <dl class="mt-3 space-y-2 text-sm">
+                                    <div class="flex items-center justify-between gap-4">
+                                        <dt class="text-gray-500 dark:text-gray-400">
+                                            {{ $fare['billed_days'] }} day(s) &times; {{ number_format($fare['billed_price_per_day'], 2) }} per day
+                                            &mdash; first {{ number_format($fare['billed_included_km']) }} km included
+                                        </dt>
+                                        <dd class="font-semibold text-gray-900 dark:text-white">{{ number_format($fare['base_amount'], 2) }}</dd>
+                                    </div>
+                                    <div class="flex items-center justify-between gap-4">
+                                        <dt class="text-gray-500 dark:text-gray-400">
+                                            @if($fare['extra_km'] > 0)
+                                                {{ number_format($fare['extra_km']) }} extra km &times; {{ number_format($fare['billed_price_per_km'], 2) }} per km
+                                            @else
+                                                No extra km &mdash; the ride stayed inside the included kilometres
+                                            @endif
+                                        </dt>
+                                        <dd class="font-semibold text-gray-900 dark:text-white">{{ number_format($fare['extra_km_amount'], 2) }}</dd>
+                                    </div>
+                                    <div class="flex items-center justify-between gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+                                        <dt class="font-bold text-gray-900 dark:text-white">Total</dt>
+                                        <dd class="font-bold text-gray-900 dark:text-white">{{ number_format($fare['total_amount'], 2) }}</dd>
+                                    </div>
+                                </dl>
+                                <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                                    Worked out from {{ number_format($booking->tripDistanceKm()) }} km at the rate card of {{ $booking->vehicle?->name ?? 'the vehicle' }}. The rate card was copied into this bill when the trip was closed, so a later change to the rates does not change it.
+                                </p>
+                            @else
+                                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                    @if($booking->vehicle && ((float) $booking->vehicle->price_per_day > 0 || (float) $booking->vehicle->price_per_km > 0))
+                                        The amount is worked out from the closing odometer reading. {{ $booking->vehicle->name }} is on
+                                        @if((float) $booking->vehicle->price_per_day > 0)
+                                            {{ number_format((float) $booking->vehicle->price_per_day, 2) }} per day
+                                            @if((int) $booking->vehicle->fixed_km_per_day > 0)
+                                                (first {{ number_format((int) $booking->vehicle->fixed_km_per_day) }} km included)
+                                            @endif
+                                        @endif
+                                        @if((float) $booking->vehicle->price_per_km > 0)
+                                            {{ (float) $booking->vehicle->price_per_day > 0 ? ', then ' : '' }}{{ number_format((float) $booking->vehicle->price_per_km, 2) }} per extra km
+                                        @endif
+                                        .
+                                    @else
+                                        No rate card was filled in for {{ $booking->vehicle?->name ?? 'the vehicle' }}, so no amount could be worked out for this ride.
+                                    @endif
+                                </p>
+                            @endif
+                        </div>
+                        @if($booking->startOdometerPhotoUrl() || $booking->endOdometerPhotoUrl())
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">Click a photo to open it full size.</p>
+                        @endif
+                    </div>
+
+                    <!-- Ride expenses: petrol / diesel / gas money the driver paid for, each with its bill photo -->
+                    <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden p-6">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Trip Expenses</h3>
+                            @if($booking->rideExpenses->isNotEmpty())
+                                <p class="text-sm font-bold text-gray-900 dark:text-white">
+                                    {{ $booking->rideExpenses->count() }} bill(s) &bull; Total {{ number_format($booking->expenseTotal(), 2) }}
+                                </p>
+                            @endif
+                        </div>
+
+                        @if($booking->rideExpenses->isEmpty())
+                            <p class="text-sm text-gray-500 dark:text-gray-400">The driver has not claimed any expense for this ride.</p>
+                        @else
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Spent On</th>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Bill No.</th>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Bill Photo</th>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Logged By</th>
+                                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Note</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">
+                                        @foreach($booking->rideExpenses->sortByDesc('spent_on') as $expense)
+                                            <tr>
+                                                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $expense->spent_on?->format('d M, Y') }}</td>
+                                                <td class="px-3 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">{{ $expense->category->label() }}</td>
+                                                <td class="px-3 py-3 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">{{ number_format((float) $expense->amount, 2) }}</td>
+                                                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $expense->bill_number ?: '—' }}</td>
+                                                <td class="px-3 py-3 whitespace-nowrap">
+                                                    @if($expense->billPhotoUrl())
+                                                        <a href="{{ $expense->billPhotoUrl() }}" target="_blank" class="text-sm font-semibold text-primary-600 hover:underline dark:text-primary-400">View Bill</a>
+                                                    @else
+                                                        <span class="text-sm text-gray-400">Not uploaded</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $expense->driver?->name ?? 'Driver removed' }}</td>
+                                                <td class="px-3 py-3 text-sm text-gray-600 dark:text-gray-300">{{ $expense->notes ?: '—' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                    @php $rejections = $booking->driverAssignments->whereNotNull('rejection_reason')->sortByDesc('responded_at'); @endphp
+                    @if($rejections->isNotEmpty() || $booking->status === \App\Enums\BookingStatus::REJECTED)
+                        <!-- Rejection details: who turned the ride down, and why -->
+                        <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-red-100 dark:border-red-900/40 overflow-hidden p-6">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+                                {{ $booking->isRejectedByDriver() ? 'Driver Rejection Details' : 'Rejection Details' }}
+                            </h3>
+
+                            @if($booking->isRejectedByDriver())
+                                <p class="mb-4 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-sm">
+                                    This ride is marked <strong>Driver Rejected</strong> because {{ $rejections->first()->driver?->name ?? 'the assigned driver' }}
+                                    {{ $rejections->first()->wasAutoRejected() ? 'never answered within the 6 hour window' : 'turned it down' }}.
+                                    The customer has not been notified &mdash; assign another driver below to put it back in play.
+                                </p>
+                            @elseif($booking->isRejectedByAdmin())
+                                <p class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                                    This ride is <strong>Rejected</strong> by the admin.
+                                    @if($booking->rejection_reason)
+                                        Reason: {{ $booking->rejection_reason }}
+                                    @endif
+                                </p>
+                            @endif
+
+                            @if($rejections->isNotEmpty())
+                            <ul class="space-y-4">
+                                @foreach($rejections as $rejection)
+                                    <li class="p-4 rounded-lg border border-gray-100 dark:border-gray-700">
+                                        <div class="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <p class="text-sm font-bold text-gray-900 dark:text-white">
+                                                    {{ $rejection->driver?->name ?? 'Driver removed' }}
+                                                </p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                    Rejected on {{ $rejection->responded_at?->format('d M, Y') }} at {{ $rejection->responded_at?->format('h:i A') }}
+                                                </p>
+                                            </div>
+                                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-full
+                                                @if($rejection->wasAutoRejected()) bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                                @else bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 @endif">
+                                                {{ $rejection->rejectionLabel() }}
+                                            </span>
+                                        </div>
+                                        <p class="mt-3 text-sm text-gray-700 dark:text-gray-300">{{ $rejection->rejection_reason }}</p>
+                                    </li>
+                                @endforeach
+                            </ul>
+                            @endif
+                        </div>
+                    @endif
+
                 </div>
 
                 <!-- Right Column: Management Form -->
@@ -110,11 +345,12 @@
                         <div class="mb-6">
                             <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Current Status</p>
                             <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full 
-                                @if($booking->status == 'PENDING') bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
-                                @elseif($booking->status == 'CONFIRMED') bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
-                                @elseif($booking->status == 'CANCELLED') bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                                @if($booking->status === \App\Enums\BookingStatus::TRIP_COMPLETED) bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400
+                                @elseif($booking->isRejectedByDriver()) bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+                                @elseif($booking->status === \App\Enums\BookingStatus::CANCELLED || $booking->status === \App\Enums\BookingStatus::REJECTED) bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                                @elseif($booking->status === \App\Enums\BookingStatus::PENDING) bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
                                 @else bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 @endif">
-                                {{ $booking->status }}
+                                {{ $booking->displayStatus() }}
                             </span>
                         </div>
 

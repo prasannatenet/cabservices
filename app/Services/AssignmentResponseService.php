@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AssignmentResponseStatus;
 use App\Enums\BookingStatus;
+use App\Enums\RejectionSource;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
 use App\Models\DriverAssignment;
@@ -39,6 +40,7 @@ class AssignmentResponseService
 
             $booking->update([
                 'status' => BookingStatus::CONFIRMED->value,
+                'rejection_source' => null,
             ]);
 
             BookingStatusHistory::create([
@@ -130,6 +132,9 @@ class AssignmentResponseService
             $booking->update([
                 'status' => BookingStatus::REJECTED->value,
                 'rejection_reason' => $reason,
+                // The driver side refused this ride, so the admin screens label
+                // it "Driver Rejected" rather than a rejection by the admin.
+                'rejection_source' => RejectionSource::Driver->value,
                 // Free the driver so he can be given another ride.
                 'driver_id' => null,
             ]);

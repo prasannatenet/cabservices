@@ -69,7 +69,7 @@
         </div>
 
         <!-- Metrics -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 p-6">
                 <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Rides</p>
                 <p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white font-display">{{ $metrics['total_rides'] }}</p>
@@ -85,6 +85,10 @@
             <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 p-6">
                 <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">My Cities</p>
                 <p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white font-display">{{ $metrics['preferred_cities'] }}</p>
+            </div>
+            <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 p-6">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rejected</p>
+                <p class="mt-2 text-3xl font-bold text-red-600 dark:text-red-400 font-display">{{ $metrics['rejected_rides'] }}</p>
             </div>
         </div>
 
@@ -103,6 +107,7 @@
                             <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Route</th>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pickup</th>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Trip Sheet</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800/40">
@@ -116,10 +121,81 @@
                                     {{ \Illuminate\Support\Carbon::parse($booking->pickup_date)->format('d M, Y') }} at {{ \Illuminate\Support\Carbon::parse($booking->pickup_time)->format('h:i A') }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-300">{{ $booking->status->value }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    @if($booking->canStartTrip())
+                                        <a href="{{ route('driver.trips.show', $booking) }}" class="inline-block px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 transition-colors">
+                                            Start Trip
+                                        </a>
+                                    @elseif($booking->canLogExpenses())
+                                        <div class="flex items-center gap-2">
+                                            <a href="{{ route('driver.trips.show', $booking) }}" class="inline-block px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors">
+                                                Add Expense
+                                            </a>
+                                            <a href="{{ route('driver.trips.show', $booking) }}#end-trip" class="inline-block px-3 py-1.5 rounded-lg text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 dark:text-green-400 dark:bg-green-900/30 transition-colors">
+                                                End Trip
+                                            </a>
+                                        </div>
+                                    @elseif($booking->hasTripStarted())
+                                        <a href="{{ route('driver.trips.show', $booking) }}" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
+                                            Trip Sheet
+                                        </a>
+                                    @else
+                                        <span class="text-xs text-gray-400 dark:text-gray-500">Waiting</span>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No upcoming trips assigned yet.</td>
+                                <td colspan="5" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No upcoming trips assigned yet.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Rides You Rejected -->
+        <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden">
+            <div class="p-6 border-b border-gray-100 dark:border-gray-800/60 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Rides You Rejected</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Every ride you refused, with the reason you sent to the admin.</p>
+                </div>
+                <a href="{{ route('driver.rejections.index') }}" class="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">View all &rarr;</a>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800/60">
+                    <thead class="bg-gray-50/50 dark:bg-[#0a0a0a]">
+                        <tr>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Booking</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Route</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pickup</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reason You Gave</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">When</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800/40">
+                        @forelse($rejectedAssignments as $assignment)
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600 dark:text-primary-400">{{ $assignment->booking?->booking_number }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                                    {{ optional($assignment->booking?->pickupCity)->name }} &rarr; {{ optional($assignment->booking?->dropCity)->name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                                    {{ \Illuminate\Support\Carbon::parse($assignment->booking?->pickup_date)->format('d M, Y') }} at {{ \Illuminate\Support\Carbon::parse($assignment->booking?->pickup_time)->format('h:i A') }}
+                                </td>
+                                <td class="px-6 py-4 text-sm">
+                                    <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50">
+                                        {{ $assignment->rejectionLabel() }}
+                                    </span>
+                                    <p class="mt-1 text-gray-700 dark:text-gray-300">{{ $assignment->rejection_reason }}</p>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $assignment->responded_at?->diffForHumans() }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">You have not rejected any ride yet.</td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\BookingStatus;
+use App\Enums\RejectionSource;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
 use App\Models\Driver;
@@ -14,7 +15,10 @@ use Illuminate\Support\Str;
 
 class BookingService
 {
-    public function __construct(protected MailNotificationService $mailNotifications) {}
+    public function __construct(
+        protected MailNotificationService $mailNotifications,
+        protected TripFareCalculator $tripFare,
+    ) {}
 
     public function createBookingRequest(array $data)
     {
@@ -84,6 +88,7 @@ class BookingService
             $booking->update([
                 'status' => BookingStatus::REJECTED->value,
                 'rejection_reason' => $reason,
+                'rejection_source' => RejectionSource::Admin->value,
             ]);
 
             BookingStatusHistory::create([
@@ -199,18 +204,91 @@ class BookingService
     }
 
     /**
-     * Mark the trip as completed and relocate the vehicle and driver to the
-     * drop city, so they become available from there (e.g. a Jaipur ->
-     * Udaipur trip makes them available from Udaipur afterwards).
+     * The driver starts the ride. He must give the odometer reading he sees on
+     * the meter and a photo of it, so the admin has proof of the vehicle's
+     * state and mileage at pickup, and the booking moves to Trip Started.
+     *
+     * @throws \Exception when the ride is not in a state that can be started
      */
-    public function completeTrip(Booking $booking, $adminId)
+    public function startTrip(Booking $booking, int $odometerKm, string $odometerPhoto, ?int $changedBy = null)
     {
-        return DB::transaction(function () use ($booking, $adminId) {
+        if (! $booking->canStartTrip()) {
+            throw new \Exception('This ride cannot be started from its current status ('.$booking->displayStatus().').');
+        }
+
+        return DB::transaction(function () use ($booking, $odometerKm, $odometerPhoto, $changedBy) {
             $oldStatus = $booking->status;
 
             $booking->update([
-                'status' => BookingStatus::TRIP_COMPLETED->value,
+                'status' => BookingStatus::TRIP_STARTED->value,
+                'start_odometer_km' => $odometerKm,
+                'start_odometer_photo' => $odometerPhoto,
+                'trip_started_at' => now(),
             ]);
+
+            BookingStatusHistory::create([
+                'booking_id' => $booking->id,
+                'old_status' => $oldStatus->value,
+                'new_status' => BookingStatus::TRIP_STARTED->value,
+                'changed_by' => $changedBy,
+                'remarks' => 'Trip started by the driver. Odometer at start: '.number_format($odometerKm).' km.',
+            ]);
+
+            return $booking;
+        });
+    }
+
+    /**
+     * Mark the trip as completed and relocate the vehicle and driver to the
+     * drop city, so they become available from there (e.g. a Jaipur ->
+     * Udaipur trip makes them available from Udaipur afterwards).
+     *
+     * When the driver closes the ride himself the closing odometer reading and
+     * photo are stored as well, so the total distance of the ride is the
+     * difference between the two readings. An admin can still complete a ride
+     * without them.
+     *
+     * Whenever both readings are in, the amount of the ride is worked out from
+     * that distance and the rate card of the vehicle and stored with it.
+     */
+    public function completeTrip(Booking $booking, $adminId, ?int $endOdometerKm = null, ?string $endOdometerPhoto = null)
+    {
+        if ($endOdometerKm !== null
+            && $booking->start_odometer_km !== null
+            && $endOdometerKm < (int) $booking->start_odometer_km) {
+            throw new \Exception(
+                'The closing odometer reading ('.number_format($endOdometerKm).' km) cannot be lower than the reading at the start ('
+                .number_format((int) $booking->start_odometer_km).' km).'
+            );
+        }
+
+        return DB::transaction(function () use ($booking, $adminId, $endOdometerKm, $endOdometerPhoto) {
+            $oldStatus = $booking->status;
+
+            $attributes = ['status' => BookingStatus::TRIP_COMPLETED->value];
+
+            if ($endOdometerKm !== null) {
+                $attributes['end_odometer_km'] = $endOdometerKm;
+                $attributes['end_odometer_photo'] = $endOdometerPhoto;
+                $attributes['trip_ended_at'] = now();
+            }
+
+            $booking->fill($attributes);
+
+            // The bill is worked out while the readings are at hand and stored
+            // with the figures it came out of, so a later change to the
+            // vehicle's rate card cannot rewrite a closed bill.
+            $tripDistanceKm = $booking->tripDistanceKm();
+
+            if ($tripDistanceKm !== null) {
+                $fare = $this->tripFare->calculate($booking, $tripDistanceKm);
+
+                if ($fare !== null) {
+                    $booking->fill($fare);
+                }
+            }
+
+            $booking->save();
 
             if ($booking->vehicle_id && $booking->drop_city_id) {
                 Vehicle::whereKey($booking->vehicle_id)->update(['city_id' => $booking->drop_city_id]);
@@ -225,11 +303,60 @@ class BookingService
                 'old_status' => $oldStatus,
                 'new_status' => BookingStatus::TRIP_COMPLETED->value,
                 'changed_by' => $adminId,
-                'remarks' => 'Trip completed. Vehicle and driver relocated to '.($booking->dropCity->name ?? 'the drop city').'.',
+                'remarks' => $this->completionRemarks($booking)
+                    .' Vehicle and driver relocated to '.($booking->dropCity->name ?? 'the drop city').'.',
             ]);
 
             return $booking;
         });
+    }
+
+    /**
+     * Close the ride from the driver's phone. The closing odometer reading and
+     * photo are the proof of the distance covered, so the trip total comes out
+     * of the difference between the two readings.
+     *
+     * @throws \Exception when the ride is not running or the reading is lower
+     *                    than the one recorded at the start
+     */
+    public function endTrip(Booking $booking, int $endOdometerKm, string $odometerPhoto, ?int $changedBy = null)
+    {
+        if (! $booking->canEndTrip()) {
+            throw new \Exception('This ride cannot be ended from its current status ('.$booking->displayStatus().').');
+        }
+
+        return $this->completeTrip($booking, $changedBy, $endOdometerKm, $odometerPhoto);
+    }
+
+    /**
+     * The odometer and money part of the trip-completed history line.
+     */
+    protected function completionRemarks(Booking $booking): string
+    {
+        $remarks = 'Trip completed.';
+
+        if ($booking->start_odometer_km !== null && $booking->end_odometer_km !== null) {
+            $remarks .= ' Odometer at start: '.number_format((int) $booking->start_odometer_km)
+                .' km, at end: '.number_format((int) $booking->end_odometer_km)
+                .' km, total distance: '.number_format((int) $booking->tripDistanceKm()).' km.';
+        } elseif ($booking->end_odometer_km !== null) {
+            $remarks .= ' Odometer at end: '.number_format((int) $booking->end_odometer_km).' km.';
+        }
+
+        if ($booking->hasTripFare()) {
+            $remarks .= ' Amount billed: '.number_format((float) $booking->total_amount, 2)
+                .' ('.((int) $booking->billed_days).' day(s) at '.number_format((float) $booking->billed_price_per_day, 2)
+                .' covering '.number_format((int) $booking->billed_included_km).' km';
+
+            if ((int) $booking->extra_km > 0) {
+                $remarks .= ', plus '.number_format((int) $booking->extra_km).' extra km at '
+                    .number_format((float) $booking->billed_price_per_km, 2);
+            }
+
+            $remarks .= ').';
+        }
+
+        return $remarks;
     }
 
     /**

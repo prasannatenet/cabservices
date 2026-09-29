@@ -35,6 +35,7 @@ class DashboardController extends Controller
             'completed_rides' => $driver->bookings()->where('status', BookingStatus::TRIP_COMPLETED->value)->count(),
             'upcoming_rides' => $driver->bookings()->whereIn('status', $upcomingStatuses)->count(),
             'preferred_cities' => $driver->preferredCities()->count(),
+            'rejected_rides' => $driver->rejectedAssignments()->count(),
         ];
 
         $upcomingBookings = $driver->bookings()
@@ -50,8 +51,15 @@ class DashboardController extends Controller
             'metrics' => $metrics,
             'upcomingBookings' => $upcomingBookings,
             'pendingAssignments' => $driver->pendingAssignments()
-                ->with('booking.pickupCity', 'booking.dropCity')
+                ->with(['booking.pickupCity', 'booking.dropCity'])
                 ->orderBy('response_deadline')
+                ->get(),
+            // A refused ride is handed back to the admin, so it no longer shows
+            // up in the driver's bookings. The assignment row is what keeps it
+            // on his dashboard along with the reason he gave.
+            'rejectedAssignments' => $driver->rejectedAssignments()
+                ->with(['booking.pickupCity', 'booking.dropCity'])
+                ->take(5)
                 ->get(),
         ]);
     }
@@ -86,10 +94,24 @@ class DashboardController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // How far this driver has got. The distance of a ride is the difference
+        // between its two odometer readings, which the database can add up for
+        // the whole history in one go; the amount of a ride is what the rate
+        // card of its vehicle came to.
+        $totals = $driver->bookings()
+            ->completed()
+            ->selectRaw('COUNT(*) as rides, COALESCE(SUM(end_odometer_km - start_odometer_km), 0) as distance, COALESCE(SUM(total_amount), 0) as amount')
+            ->first();
+
         return view('driver.rides', [
             'driver' => $driver,
             'rides' => $rides,
             'statuses' => array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
+            'totals' => [
+                'rides' => (int) $totals->rides,
+                'total_km' => (int) $totals->distance,
+                'total_amount' => round((float) $totals->amount, 2),
+            ],
         ]);
     }
 
@@ -108,6 +130,25 @@ class DashboardController extends Controller
             ->get();
 
         return view('driver.assignments', [
+            'driver' => $driver,
+            'assignments' => $assignments,
+        ]);
+    }
+
+    /**
+     * Every ride this driver has rejected, with the reason he wrote for each
+     * one. Rides he never answered show up here too, marked as expired.
+     */
+    public function rejections(): View
+    {
+        $driver = $this->authDriver();
+
+        $assignments = $driver->rejectedAssignments()
+            ->with(['booking.pickupCity', 'booking.dropCity', 'booking.vehicle', 'booking.serviceType'])
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('driver.rejections', [
             'driver' => $driver,
             'assignments' => $assignments,
         ]);

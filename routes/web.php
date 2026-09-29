@@ -18,7 +18,9 @@ Route::prefix('booking')->name('booking.')->group(function () {
 use App\Http\Controllers\Admin\AssociateController;
 use App\Http\Controllers\Admin\BookingController as AdminBookingController;
 use App\Http\Controllers\Admin\CityController;
+use App\Http\Controllers\Admin\CompletedTripController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DriverActivityController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\DriverLeaveController;
 use App\Http\Controllers\Admin\NearbyCityController;
@@ -35,15 +37,24 @@ use App\Http\Controllers\Associate\ServiceTypeController as AssociateServiceType
 use App\Http\Controllers\Associate\VehicleController as AssociateVehicleController;
 use App\Http\Controllers\Driver\DashboardController as DriverDashboardController;
 use App\Http\Controllers\Driver\ProfileController as DriverProfileController;
+use App\Http\Controllers\Driver\TripController as DriverTripController;
 
 // Admin Routes (Protected)
 Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('associates', AssociateController::class)->except(['show']);
+
+    // The list of finished rides with their distance and amount. It is declared
+    // before the bookings resource so that "completed" is not read as a booking id.
+    Route::get('bookings/completed', [CompletedTripController::class, 'index'])->name('bookings.completed');
     Route::resource('bookings', AdminBookingController::class);
     Route::delete('vehicles/images/{image}', [VehicleController::class, 'destroyImage'])->name('vehicles.images.destroy');
     Route::resource('vehicles', VehicleController::class);
     Route::resource('drivers', DriverController::class);
+
+    // Per-driver ride activity: rides assigned, ongoing, completed and refused.
+    Route::get('driver-activity', [DriverActivityController::class, 'index'])->name('driver-activity.index');
+    Route::get('drivers/{driver}/activity', [DriverActivityController::class, 'show'])->name('driver-activity.show');
 
     Route::resource('cities', CityController::class)->except(['show']);
     Route::get('cities/{city}/nearby', [NearbyCityController::class, 'index'])->name('cities.nearby');
@@ -83,6 +94,17 @@ Route::middleware(['auth', 'role:driver'])->prefix('driver')->name('driver.')->g
     Route::get('/assignments', [DriverDashboardController::class, 'pendingAssignments'])->name('assignments.index');
     Route::post('/assignments/{assignment}/accept', [DriverDashboardController::class, 'acceptAssignment'])->name('assignments.accept');
     Route::post('/assignments/{assignment}/reject', [DriverDashboardController::class, 'rejectAssignment'])->name('assignments.reject');
+    Route::get('/rejections', [DriverDashboardController::class, 'rejections'])->name('rejections.index');
+
+    // Trip sheet: odometer photo + reading when the ride starts, the same proof
+    // again when the ride ends (the total distance is the difference between
+    // the two readings), and the petrol / diesel / gas expenses the driver pays
+    // for while driving.
+    Route::get('/rides/{booking}/trip', [DriverTripController::class, 'show'])->name('trips.show');
+    Route::post('/rides/{booking}/trip/start', [DriverTripController::class, 'start'])->name('trips.start');
+    Route::post('/rides/{booking}/trip/end', [DriverTripController::class, 'end'])->name('trips.end');
+    Route::post('/rides/{booking}/trip/expenses', [DriverTripController::class, 'storeExpense'])->name('trips.expenses.store');
+    Route::delete('/rides/{booking}/trip/expenses/{expense}', [DriverTripController::class, 'destroyExpense'])->name('trips.expenses.destroy');
 });
 
 // Associate Portal Routes (Protected)

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AssignmentResponseStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -80,6 +81,99 @@ class DriverAssignment extends Model
         }
 
         return max(0, (int) now()->diffInMinutes($this->response_deadline, false));
+    }
+
+    /**
+     * Response statuses that mean the driver side turned the ride down.
+     *
+     * @return list<string>
+     */
+    public static function refusedResponseValues(): array
+    {
+        return [
+            AssignmentResponseStatus::Rejected->value,
+            AssignmentResponseStatus::AutoRejected->value,
+        ];
+    }
+
+    /**
+     * Assignments ended by the driver refusing them or by his window closing.
+     * Unordered on purpose so it can be reused inside count() subqueries.
+     */
+    public function scopeRefused(Builder $query): Builder
+    {
+        return $query->whereIn('response_status', self::refusedResponseValues())
+            ->whereNotNull('responded_at');
+    }
+
+    /**
+     * Assignments the driver accepted, i.e. he went ahead with the ride.
+     */
+    public function scopeAccepted(Builder $query): Builder
+    {
+        return $query->where('response_status', AssignmentResponseStatus::Accepted->value);
+    }
+
+    /**
+     * Assignments still waiting for the driver inside his response window.
+     */
+    public function scopeAwaitingResponse(Builder $query): Builder
+    {
+        return $query->where('response_status', AssignmentResponseStatus::Pending->value)
+            ->where('response_deadline', '>', now());
+    }
+
+    /**
+     * Assignments whose ride the driver drove all the way to completion.
+     */
+    public function scopeCompletedTrips(Builder $query): Builder
+    {
+        return $query->whereHas('booking', fn (Builder $booking) => $booking->completed());
+    }
+
+    /**
+     * Assignments whose ride is still on its way (assigned, confirmed or started).
+     */
+    public function scopeOngoingTrips(Builder $query): Builder
+    {
+        return $query->whereHas('booking', fn (Builder $booking) => $booking->ongoing());
+    }
+
+    /**
+     * Assignments that ended in a rejection, either refused by the driver or
+     * auto-rejected when his window closed. Newest answer first.
+     *
+     * The booking is freed for another driver once a ride is refused, so this
+     * assignment row is what keeps the rejection and its reason visible.
+     */
+    public function scopeRejected(Builder $query): Builder
+    {
+        return $query->refused()->orderByDesc('responded_at');
+    }
+
+    /**
+     * Whether the driver personally refused the ride, as opposed to never
+     * answering it.
+     */
+    public function wasRejectedByDriver(): bool
+    {
+        return $this->response_status === AssignmentResponseStatus::Rejected;
+    }
+
+    /**
+     * Whether the response window closed without any answer.
+     */
+    public function wasAutoRejected(): bool
+    {
+        return $this->response_status === AssignmentResponseStatus::AutoRejected;
+    }
+
+    /**
+     * Short label shown next to a rejection in the driver and admin views.
+     */
+    public function rejectionLabel(): string
+    {
+        return $this->wasAutoRejected() ? 'No answer in time' : 'Rejected';
     }
 
     public function booking()

@@ -152,6 +152,15 @@ class Driver extends Model
             ->where('response_deadline', '>', now());
     }
 
+    /**
+     * Rides this driver refused, or never answered, newest answer first.
+     * Each row still carries the reason he gave for the rejection.
+     */
+    public function rejectedAssignments()
+    {
+        return $this->driverAssignments()->rejected();
+    }
+
     public function leaves()
     {
         return $this->hasMany(DriverLeave::class);

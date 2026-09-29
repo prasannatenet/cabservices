@@ -9,6 +9,22 @@
     </x-slot>
 
     <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden">
+        <!-- What his finished rides added up to -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-800/60 border-b border-gray-100 dark:border-gray-800/60">
+            <div class="p-6">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Rides Completed</p>
+                <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ number_format($totals['rides']) }}</p>
+            </div>
+            <div class="p-6">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Distance Covered</p>
+                <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ number_format($totals['total_km']) }} <span class="text-base">km</span></p>
+            </div>
+            <div class="p-6">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Billed</p>
+                <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ number_format($totals['total_amount'], 2) }}</p>
+            </div>
+        </div>
+
         <div class="p-6 pb-0">
             <form action="{{ route('driver.rides') }}" method="GET" class="mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex flex-wrap items-end gap-3">
                 <div>
@@ -36,7 +52,9 @@
                         <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date &amp; Time</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Passengers</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vehicle</th>
+                        <th scope="col" class="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Km</th>
                         <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Trip Sheet</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800/40">
@@ -53,6 +71,13 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                 {{ $ride->vehicle?->name ?? $ride->vehicle_reference ?? 'N/A' }}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900 dark:text-white">
+                                @if($ride->tripDistanceKm() !== null)
+                                    {{ number_format($ride->tripDistanceKm()) }} km
+                                @else
+                                    <span class="text-gray-400 dark:text-gray-500" title="The odometer readings of this ride are not both in yet">&mdash;</span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border
                                     @if($ride->status == \App\Enums\BookingStatus::TRIP_COMPLETED) bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50
@@ -62,10 +87,35 @@
                                     {{ $ride->status->value }}
                                 </span>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                @if($ride->canStartTrip())
+                                    <a href="{{ route('driver.trips.show', $ride) }}" class="inline-block px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 transition-colors">
+                                        Start Trip
+                                    </a>
+                                @elseif($ride->canLogExpenses())
+                                    <div class="flex items-center gap-2">
+                                        <a href="{{ route('driver.trips.show', $ride) }}" class="inline-block px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors">
+                                            Add Expense
+                                        </a>
+                                        <a href="{{ route('driver.trips.show', $ride) }}#end-trip" class="inline-block px-3 py-1.5 rounded-lg text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 dark:text-green-400 dark:bg-green-900/30 transition-colors">
+                                            End Trip
+                                        </a>
+                                    </div>
+                                @elseif($ride->hasTripStarted())
+                                    <a href="{{ route('driver.trips.show', $ride) }}" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
+                                        Trip Sheet
+                                    </a>
+                                    @if($ride->hasTripFare())
+                                        <p class="mt-1 text-xs font-bold text-green-600 dark:text-green-400">{{ number_format((float) $ride->total_amount, 2) }}</p>
+                                    @endif
+                                @else
+                                    <span class="text-xs text-gray-400 dark:text-gray-500">&mdash;</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No rides found.</td>
+                            <td colspan="8" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No rides found.</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -9,8 +9,9 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden">
-                <div class="p-6 border-b border-gray-100 dark:border-gray-800/60 flex justify-between items-center">
+                <div class="p-6 border-b border-gray-100 dark:border-gray-800/60 flex flex-wrap justify-between items-center gap-3">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">All Bookings</h3>
+                    <a href="{{ route('admin.bookings.completed') }}" class="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 transition-colors whitespace-nowrap">Completed Rides &rarr;</a>
                 </div>
 
                 <div class="p-6 pb-0">
@@ -79,13 +80,21 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border 
-                                        @if($booking->status->value === 'Pending') bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900/50
-                                        @elseif($booking->status->value === 'Confirmed') bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50
-                                        @elseif($booking->status->value === 'Cancelled') bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50
-                                        @elseif($booking->status->value === 'Trip Completed') bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/50
+                                        @if($booking->isRejectedByDriver()) bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-900/50
+                                        @elseif($booking->status === \App\Enums\BookingStatus::PENDING) bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900/50
+                                        @elseif($booking->status === \App\Enums\BookingStatus::CONFIRMED) bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50
+                                        @elseif($booking->status === \App\Enums\BookingStatus::TRIP_COMPLETED) bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/50
+                                        @elseif($booking->status === \App\Enums\BookingStatus::CANCELLED || $booking->status === \App\Enums\BookingStatus::REJECTED) bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50
                                         @else bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50 @endif">
-                                        {{ $booking->status->value }}
+                                        {{ $booking->displayStatus() }}
                                     </span>
+                                    @if($booking->isRejectedByDriver() && $booking->driverAssignment)
+                                        <div class="mt-2 max-w-xs text-xs text-gray-500 dark:text-gray-400">
+                                            <span class="font-semibold text-gray-700 dark:text-gray-200">{{ $booking->driverAssignment->driver?->name ?? 'Driver removed' }}</span>
+                                            &middot; {{ $booking->driverAssignment->rejectionLabel() }}:
+                                            {{ Str::limit($booking->driverAssignment->rejection_reason, 70) }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold">
                                     <a href="{{ route('admin.bookings.show', $booking) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">Manage &rarr;</a>
