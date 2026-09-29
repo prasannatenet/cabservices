@@ -10,6 +10,7 @@ use App\Models\ServiceType;
 use App\Models\Vehicle;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
+use App\Services\TripFareCalculator;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
@@ -38,7 +39,7 @@ class BookingController extends Controller
         ]);
     }
 
-    public function create(Request $request)
+    public function create(Request $request, TripFareCalculator $tripFare)
     {
         $searchParams = $request->except('_token');
 
@@ -48,7 +49,17 @@ class BookingController extends Controller
             $vehicle = Vehicle::with('images')->find($searchParams['vehicle_id']);
         }
 
-        return view('booking.create', compact('searchParams', 'vehicle'));
+        // The price structure of the selected vehicle over the requested hire, so
+        // the customer sees what the ride will cost before confirming it.
+        $priceEstimate = $vehicle instanceof Vehicle
+            ? $tripFare->estimate(
+                $vehicle,
+                $searchParams['pickup_date'] ?? null,
+                $searchParams['drop_date'] ?? null
+            )
+            : null;
+
+        return view('booking.create', compact('searchParams', 'vehicle', 'priceEstimate'));
     }
 
     public function store(StoreBookingRequest $request, BookingService $bookingService)

@@ -89,7 +89,7 @@ class TripController extends Controller
      */
     public function end(Request $request, Booking $booking): RedirectResponse
     {
-        $this->authorizedDriver($booking);
+        $driver = $this->authorizedDriver($booking);
 
         if (! $booking->canEndTrip()) {
             return back()->with('error', 'This ride cannot be ended from its current status ('.$booking->displayStatus().').');
@@ -121,10 +121,16 @@ class TripController extends Controller
             return back()->with('error', $exception->getMessage());
         }
 
+        // The price of the ride is the operator's business, so the confirmation
+        // only reports the distance. A per day driver is told what the trip earned
+        // him from his own daily rate.
         $message = 'Trip completed. Total distance: '.number_format($endKm - $startKm).' km';
 
-        if ($booking->hasTripFare()) {
-            $message .= ', amount billed: '.number_format((float) $booking->total_amount, 2);
+        $earnings = $driver->earningsFor($booking->fresh());
+
+        if ($earnings !== null) {
+            $message .= ', your earnings: '.number_format($earnings['total'], 2)
+                .' ('.$earnings['days'].' day(s) &times; '.number_format($earnings['rate'], 2).')';
         }
 
         return redirect()->route('driver.trips.show', $booking)->with('success', $message.'.');

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\Vehicle;
+use Carbon\Carbon;
 
 /**
  * Works out what a finished ride costs from the rate card of the vehicle that
@@ -52,6 +53,65 @@ class TripFareCalculator
             return null;
         }
 
+        return $this->bill($vehicle, $this->billedDays($booking), $totalKm);
+    }
+
+    /**
+     * The bill a ride will come to, worked out before it is driven: the days come
+     * from the pickup and drop dates and the distance is not known yet, so only
+     * the day charges are certain. Used to show the customer the price structure
+     * on the booking page.
+     *
+     * Null when the vehicle has no rate card, because then there is nothing to
+     * quote from.
+     *
+     * @param  string|\DateTimeInterface|null  $pickupDate
+     * @param  string|\DateTimeInterface|null  $dropDate
+     * @return array{
+     *     billed_days: int,
+     *     billed_included_km: int,
+     *     billed_price_per_day: float,
+     *     billed_price_per_km: float,
+     *     extra_km: int,
+     *     base_amount: float,
+     *     extra_km_amount: float,
+     *     total_amount: float
+     * }|null
+     */
+    public function estimate(Vehicle $vehicle, $pickupDate, $dropDate = null): ?array
+    {
+        // The distance is unknown before the ride, so the included kilometres are
+        // used as the distance: whatever is driven beyond them is the extra km,
+        // which is billed at the end of the trip from the odometer readings.
+        $bill = $this->bill($vehicle, $this->billedDaysFor($pickupDate, $dropDate), 0);
+
+        if ($bill === null) {
+            return null;
+        }
+
+        return $bill + [
+            'extra_km' => 0,
+            'extra_km_amount' => 0.0,
+            'total_amount' => $bill['base_amount'],
+        ];
+    }
+
+    /**
+     * Apply the rate card of a vehicle over a hire of a given length.
+     *
+     * @return array{
+     *     billed_days: int,
+     *     billed_included_km: int,
+     *     billed_price_per_day: float,
+     *     billed_price_per_km: float,
+     *     extra_km: int,
+     *     base_amount: float,
+     *     extra_km_amount: float,
+     *     total_amount: float
+     * }|null
+     */
+    private function bill(Vehicle $vehicle, int $billedDays, int $totalKm): ?array
+    {
         $pricePerDay = (float) ($vehicle->price_per_day ?? 0);
         $pricePerKm = (float) ($vehicle->price_per_km ?? 0);
 
@@ -59,7 +119,6 @@ class TripFareCalculator
             return null;
         }
 
-        $billedDays = $this->billedDays($booking);
         $includedKm = ((int) $vehicle->fixed_km_per_day) * $billedDays;
         $baseAmount = round($pricePerDay * $billedDays, 2);
         $extraKm = max(0, $totalKm - $includedKm);
@@ -124,13 +183,36 @@ class TripFareCalculator
      */
     public function billedDays(Booking $booking): int
     {
-        $pickupDate = $booking->pickup_date;
-        $dropDate = $booking->drop_date;
+        return $this->billedDaysFor($booking->pickup_date, $booking->drop_date);
+    }
 
-        if ($pickupDate === null || $dropDate === null || ! $dropDate->isAfter($pickupDate)) {
+    /**
+     * The same day count taken straight from a pair of dates, for the quote shown
+     * to the customer before the booking exists.
+     *
+     * @param  string|\DateTimeInterface|null  $pickupDate
+     * @param  string|\DateTimeInterface|null  $dropDate
+     */
+    public function billedDaysFor($pickupDate, $dropDate = null): int
+    {
+        if ($pickupDate === null || $pickupDate === '') {
             return self::MINIMUM_BILLED_DAYS;
         }
 
-        return max(self::MINIMUM_BILLED_DAYS, ((int) $pickupDate->diffInDays($dropDate)) + 1);
+        $pickup = $pickupDate instanceof \DateTimeInterface
+            ? Carbon::instance($pickupDate)
+            : Carbon::parse($pickupDate);
+
+        $drop = match (true) {
+            $dropDate instanceof \DateTimeInterface => Carbon::instance($dropDate),
+            is_string($dropDate) && $dropDate !== '' => Carbon::parse($dropDate),
+            default => null,
+        };
+
+        if ($drop === null || ! $drop->isAfter($pickup)) {
+            return self::MINIMUM_BILLED_DAYS;
+        }
+
+        return max(self::MINIMUM_BILLED_DAYS, ((int) $pickup->diffInDays($drop)) + 1);
     }
 }

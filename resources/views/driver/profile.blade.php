@@ -52,6 +52,22 @@
                 @csrf
                 @method('PUT')
 
+                {{-- The driver type and rate are set by the admin, so they are shown
+                     here as a read-only summary of how the driver is paid. --}}
+                <div class="mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-800/60 bg-gray-50 dark:bg-[#0f0f0f]/40 flex flex-wrap items-center gap-x-8 gap-y-2">
+                    <div>
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Driver Type</p>
+                        <p class="mt-0.5 text-sm font-bold text-gray-900 dark:text-white">{{ $driver->driver_type?->value ?? 'Permanent' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ $driver->driver_type?->salaryLabel() ?? 'Monthly Salary' }}</p>
+                        <p class="mt-0.5 text-sm font-bold text-gray-900 dark:text-white">{{ $driver->formattedSalary() ?? 'Not set yet' }}</p>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        These are set by the admin. Contact them if they look wrong.
+                    </p>
+                </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <x-input-label for="name" :value="__('Full Name')" />

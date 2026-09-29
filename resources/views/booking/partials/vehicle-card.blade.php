@@ -64,12 +64,36 @@
         <p class="text-sm text-gray-500 mb-4">{{ $vehicle->model }} &bull; {{ $vehicle->seating_capacity }} Seats</p>
         
         <div class="flex flex-wrap gap-2 mb-6">
-            @foreach(explode(',', $vehicle->features) as $feature)
+            @foreach(explode(',', $vehicle->features ?? '') as $feature)
                 @if(trim($feature))
                     <span class="px-2.5 py-1 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs rounded-lg">{{ trim($feature) }}</span>
                 @endif
             @endforeach
         </div>
+
+        @if($vehicle->price_per_day || $vehicle->price_per_km)
+            <div class="mb-6 rounded-2xl border border-primary-100 dark:border-primary-900/40 bg-primary-50/50 dark:bg-primary-900/10 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-400 mb-2">Price</p>
+                <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    @if($vehicle->price_per_day)
+                        <p class="text-2xl font-display font-bold text-primary-600 dark:text-primary-400">
+                            &#8377;{{ number_format((float) $vehicle->price_per_day, 0) }}<span class="text-sm font-semibold">/day</span>
+                        </p>
+                    @endif
+                    @if($vehicle->price_per_km)
+                        <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                            + &#8377;{{ number_format((float) $vehicle->price_per_km, 2) }}/km
+                        </p>
+                    @endif
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    @if($vehicle->fixed_km_per_day)
+                        {{ number_format((int) $vehicle->fixed_km_per_day) }} km included per day.
+                    @endif
+                    Only the distance beyond the included kilometres is charged extra.
+                </p>
+            </div>
+        @endif
 
         <form action="{{ route('booking.create') }}" method="GET">
             @foreach($searchParams as $key => $value)

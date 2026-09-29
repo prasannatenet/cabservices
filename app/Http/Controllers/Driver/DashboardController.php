@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Driver;
 use App\Enums\AssignmentResponseStatus;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverAssignment;
 use App\Services\AssignmentResponseService;
+use App\Services\TripFareCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -96,12 +99,15 @@ class DashboardController extends Controller
 
         // How far this driver has got. The distance of a ride is the difference
         // between its two odometer readings, which the database can add up for
-        // the whole history in one go; the amount of a ride is what the rate
-        // card of its vehicle came to.
+        // the whole history in one go. The price of the rides is the operator's
+        // business and is never sent to the driver, so a per day driver is shown
+        // what he earns from his own daily rate over those same rides.
         $totals = $driver->bookings()
             ->completed()
-            ->selectRaw('COUNT(*) as rides, COALESCE(SUM(end_odometer_km - start_odometer_km), 0) as distance, COALESCE(SUM(total_amount), 0) as amount')
+            ->selectRaw('COUNT(*) as rides, COALESCE(SUM(end_odometer_km - start_odometer_km), 0) as distance')
             ->first();
+
+        $completedRides = $driver->bookings()->completed()->get();
 
         return view('driver.rides', [
             'driver' => $driver,
@@ -110,9 +116,27 @@ class DashboardController extends Controller
             'totals' => [
                 'rides' => (int) $totals->rides,
                 'total_km' => (int) $totals->distance,
-                'total_amount' => round((float) $totals->amount, 2),
+                'earnings' => $driver->earningsAcross($completedRides),
+                'days' => $this->billedDaysAcross($driver, $completedRides),
             ],
         ]);
+    }
+
+    /**
+     * The number of days the driver's completed rides add up to, so his earnings
+     * can be shown as days multiplied by his per day rate.
+     *
+     * @param  Collection<int, Booking>  $bookings
+     */
+    private function billedDaysAcross(Driver $driver, $bookings): int
+    {
+        if (! $driver->isPaidPerDay()) {
+            return 0;
+        }
+
+        $calculator = app(TripFareCalculator::class);
+
+        return $bookings->sum(fn (Booking $booking) => $calculator->billedDays($booking));
     }
 
     /**

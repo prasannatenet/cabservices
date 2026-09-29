@@ -1,3 +1,53 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+    /* Shared admin panel table. Applied as `class="admin-table"` on every
+       <table> in the admin panel so the look cannot drift per page.
+       Horizontal alignment is deliberately left to the per-cell
+       text-left / text-right utilities. */
+    .admin-table {
+        @apply w-full min-w-full text-sm;
+    }
+
+    .admin-table thead th {
+        @apply px-4 py-3 align-middle text-xs font-semibold uppercase tracking-wider
+               text-gray-500 dark:text-gray-400 whitespace-nowrap
+               bg-gray-50 dark:bg-[#0f0f0e]
+               border-b border-gray-200 dark:border-gray-800;
+    }
+
+    .admin-table tbody td {
+        @apply px-4 py-3.5 align-middle text-sm text-gray-700 dark:text-gray-300;
+    }
+
+    .admin-table tbody tr {
+        @apply transition-colors hover:bg-gray-50/60 dark:hover:bg-[#1c1c1b];
+    }
+
+    /* Full-width placeholder row shown when a listing is empty. */
+    .admin-table td.admin-table-empty {
+        @apply py-10 text-center align-middle font-medium text-gray-500 dark:text-gray-400;
+    }
+
+    /* Card that hosts a table, plus its header and footer strips. */
+    .admin-card {
+        @apply w-full bg-white dark:bg-[#161615] shadow-sm rounded-2xl overflow-hidden
+               border border-gray-100 dark:border-gray-800/60;
+    }
+
+    .admin-card-header {
+        @apply flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6
+               border-b border-gray-100 dark:border-gray-800/60;
+    }
+
+    .admin-card-footer {
+        @apply px-4 py-3 border-t border-gray-100 dark:border-gray-800/60;
+    }
+
+    /* Horizontal scroll for tables that outgrow the viewport. */
+    .admin-table-scroll {
+        @apply w-full overflow-x-auto;
+    }
+}

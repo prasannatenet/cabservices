@@ -142,20 +142,12 @@
                         At the drop point write the reading on the meter and photograph it. The total distance of this ride is the closing reading minus the starting reading.
                     </p>
                 </div>
-                @if($booking->tripDistanceKm() !== null || $booking->hasTripFare())
-                    <div class="text-right space-y-2">
-                        @if($booking->tripDistanceKm() !== null)
-                            <div>
-                                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Distance</p>
-                                <p class="text-xl font-bold text-gray-900 dark:text-white font-display">{{ number_format($booking->tripDistanceKm()) }} km</p>
-                            </div>
-                        @endif
-                        @if($booking->hasTripFare())
-                            <div>
-                                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Amount</p>
-                                <p class="text-xl font-bold text-green-600 dark:text-green-400 font-display">{{ number_format((float) $booking->total_amount, 2) }}</p>
-                            </div>
-                        @endif
+                @if($booking->tripDistanceKm() !== null)
+                    <div class="text-right">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Distance</p>
+                            <p class="text-xl font-bold text-gray-900 dark:text-white font-display">{{ number_format($booking->tripDistanceKm()) }} km</p>
+                        </div>
                     </div>
                 @endif
             </div>
@@ -184,35 +176,11 @@
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">JPG or PNG, up to 4 MB.</p>
                     </div>
                     <div class="md:col-span-2">
-                        <div class="mb-4 p-4 rounded-xl bg-white dark:bg-[#161615] border border-gray-200 dark:border-gray-700">
-                            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">What This Ride Will Cost</p>
-                            @if($booking->vehicle && ((float) $booking->vehicle->price_per_day > 0 || (float) $booking->vehicle->price_per_km > 0))
-                                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                                    @if((float) $booking->vehicle->price_per_day > 0)
-                                        {{ number_format((float) $booking->vehicle->price_per_day, 2) }} per day
-                                        @if((int) $booking->vehicle->fixed_km_per_day > 0)
-                                            covering the first {{ number_format((int) $booking->vehicle->fixed_km_per_day) }} km
-                                        @endif
-                                    @endif
-                                    @if((float) $booking->vehicle->price_per_km > 0)
-                                        {{ (float) $booking->vehicle->price_per_day > 0 ? ', then ' : '' }}{{ number_format((float) $booking->vehicle->price_per_km, 2) }} for every kilometre above that
-                                    @endif
-                                    .
-                                </p>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Every whole day of the booking is charged, so kilometres that are driven above the included ones are the only extras. The exact amount comes out of the closing reading when you end the trip.
-                                </p>
-                            @else
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                    No rate card was filled in for {{ $booking->vehicle?->name ?? 'this vehicle' }}, so no amount can be worked out for the ride.
-                                </p>
-                            @endif
-                        </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
                             Ending the ride marks it Trip Completed, so no more expenses can be added afterwards.
                         </p>
                         <button type="submit" class="px-6 py-3 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 shadow-sm transition-colors">
-                            End Trip &amp; Calculate Total
+                            End Trip
                         </button>
                     </div>
                 </form>
@@ -245,44 +213,25 @@
                     </div>
                 </div>
 
-                @php $fare = $booking->tripFare(); @endphp
-                @if($fare)
-                    <!-- The bill: the vehicle's rate card applied to the distance of this ride -->
+                {{-- What the driver himself earns for this ride, worked out from his
+                     own per day rate. The price the customer is charged is the
+                     operator's business and is not shown here. --}}
+                @php $earnings = $driver->earningsFor($booking); @endphp
+                @if($earnings)
                     <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800/60">
                         <div class="flex flex-wrap items-end justify-between gap-3">
                             <div>
-                                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Amount</p>
-                                <p class="text-2xl font-bold text-green-600 dark:text-green-400 font-display">{{ number_format($fare['total_amount'], 2) }}</p>
+                                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">My Earnings for This Ride</p>
+                                <p class="text-2xl font-bold text-green-600 dark:text-green-400 font-display">{{ number_format($earnings['total'], 2) }}</p>
                             </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                Worked out from the {{ number_format($booking->tripDistanceKm()) }} km of this ride at the rate card of the vehicle.
+                                {{ $earnings['days'] }} day(s) &times; {{ number_format($earnings['rate'], 2) }} per day
                             </p>
                         </div>
-                        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div class="flex items-center justify-between gap-4 rounded-xl bg-gray-50 dark:bg-[#0a0a0a] px-4 py-3">
-                                <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    {{ $fare['billed_days'] }} day(s) &times; {{ number_format($fare['billed_price_per_day'], 2) }}
-                                    <span class="block text-xs">covering {{ number_format($fare['billed_included_km']) }} km</span>
-                                </p>
-                                <p class="text-sm font-bold text-gray-900 dark:text-white">{{ number_format($fare['base_amount'], 2) }}</p>
-                            </div>
-                            <div class="flex items-center justify-between gap-4 rounded-xl bg-gray-50 dark:bg-[#0a0a0a] px-4 py-3">
-                                <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    @if($fare['extra_km'] > 0)
-                                        {{ number_format($fare['extra_km']) }} extra km &times; {{ number_format($fare['billed_price_per_km'], 2) }}
-                                        <span class="block text-xs">kilometres above the included ones</span>
-                                    @else
-                                        No extra kilometres
-                                        <span class="block text-xs">every kilometre stayed inside the included {{ number_format($fare['billed_included_km']) }} km</span>
-                                    @endif
-                                </p>
-                                <p class="text-sm font-bold text-gray-900 dark:text-white">{{ number_format($fare['extra_km_amount'], 2) }}</p>
-                            </div>
-                        </div>
                     </div>
-                @else
+                @elseif($driver->isPaidPerDay())
                     <p class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800/60 text-sm text-gray-500 dark:text-gray-400">
-                        No rate card was filled in for {{ $booking->vehicle?->name ?? 'the vehicle' }}, so no amount could be worked out for this ride.
+                        No per day salary has been set on your profile yet, so your earnings for this ride cannot be worked out.
                     </p>
                 @endif
             @else

@@ -42,14 +42,14 @@
                 <!-- Page Heading -->
                 @isset($header)
                     <header class="bg-white dark:bg-[#161615] border-b border-gray-200 dark:border-gray-800">
-                        <div class="px-6 py-6 sm:px-8 max-w-7xl mx-auto">
+                        <div class="px-4 py-5 sm:px-6 lg:px-8">
                             {{ $header }}
                         </div>
                     </header>
                 @endisset
 
                 <!-- Page Content -->
-                <main class="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
+                <main class="w-full p-4 sm:p-6 lg:p-8">
                     {{ $slot }}
                 </main>
             </div>

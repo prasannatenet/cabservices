@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\DriverStatus;
+use App\Enums\DriverType;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Driver;
@@ -70,6 +71,16 @@ class DriverController extends Controller
             'profile_photo' => 'nullable|image|max:2048',
             'license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
             'status' => 'required|string',
+            // Employment: the driver type decides which salary is required.
+            'driver_type' => ['required', Rule::enum(DriverType::class)],
+            'monthly_salary' => [
+                Rule::requiredIf($request->input('driver_type') === DriverType::Permanent->value),
+                'nullable', 'numeric', 'min:0', 'max:99999999.99',
+            ],
+            'per_day_salary' => [
+                Rule::requiredIf($request->input('driver_type') === DriverType::PerDay->value),
+                'nullable', 'numeric', 'min:0', 'max:999999.99',
+            ],
             // Driver login account (dashboard access)
             'login_id' => 'nullable|alpha_dash|min:3|max:255|unique:users,username',
             'login_password' => 'nullable|string|min:8|required_with:login_id',
@@ -85,7 +96,7 @@ class DriverController extends Controller
             $validated['aadhaar_photo'] = $request->file('aadhaar_photo')->store('drivers/aadhaar', 'public');
         }
 
-        $driver = Driver::create($validated);
+        $driver = Driver::create($this->keepOnlyRelevantSalary($validated));
 
         $this->saveLoginAccount($driver, $validated);
 
@@ -129,6 +140,16 @@ class DriverController extends Controller
             'profile_photo' => 'nullable|image|max:2048',
             'license_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
             'status' => 'required|string',
+            // Employment: the driver type decides which salary is required.
+            'driver_type' => ['required', Rule::enum(DriverType::class)],
+            'monthly_salary' => [
+                Rule::requiredIf($request->input('driver_type') === DriverType::Permanent->value),
+                'nullable', 'numeric', 'min:0', 'max:99999999.99',
+            ],
+            'per_day_salary' => [
+                Rule::requiredIf($request->input('driver_type') === DriverType::PerDay->value),
+                'nullable', 'numeric', 'min:0', 'max:999999.99',
+            ],
             // Driver login account (dashboard access)
             'login_id' => [
                 'nullable', 'alpha_dash', 'min:3', 'max:255',
@@ -156,7 +177,7 @@ class DriverController extends Controller
             $validated['aadhaar_photo'] = $request->file('aadhaar_photo')->store('drivers/aadhaar', 'public');
         }
 
-        $driver->update($validated);
+        $driver->update($this->keepOnlyRelevantSalary($validated));
 
         $this->saveLoginAccount($driver, $validated);
 
@@ -177,6 +198,29 @@ class DriverController extends Controller
         $driver->delete();
 
         return redirect()->route('admin.drivers.index')->with('success', 'Driver deleted successfully.');
+    }
+
+    /**
+     * Keep only the salary that matches the driver's type.
+     *
+     * Switching a driver from permanent to per day (or the other way round)
+     * must not leave the previous salary behind, otherwise the record would
+     * hold two salaries and the wrong one could be reported.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function keepOnlyRelevantSalary(array $validated): array
+    {
+        $isPermanent = ($validated['driver_type'] ?? null) === DriverType::Permanent->value;
+
+        if ($isPermanent) {
+            $validated['per_day_salary'] = null;
+        } else {
+            $validated['monthly_salary'] = null;
+        }
+
+        return $validated;
     }
 
     /**

@@ -13,6 +13,10 @@
         @method($method)
     @endif
 
+    {{-- Keeps the salary input for the unselected driver type from flashing
+         on screen before Alpine applies x-show. --}}
+    <style>[x-cloak] { display: none !important; }</style>
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
             <x-input-label for="name" :value="__('Full Name')" />
@@ -78,6 +82,40 @@
                 <option value="Inactive" @selected(old('status', $driver?->status) === 'Inactive')>Inactive</option>
             </select>
             <x-input-error :messages="$errors->get('status')" class="mt-2" />
+        </div>
+    </div>
+
+    <!-- Employment (Driver Type & Salary) -->
+    <div class="pt-6 border-t border-gray-100 dark:border-gray-800/60 space-y-6" x-data="{ driverType: @js(old('driver_type', $driver?->driver_type?->value ?? \App\Enums\DriverType::Permanent->value)) }">
+        <div>
+            <h3 class="text-base font-bold text-gray-900 dark:text-white font-display">Employment</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Is the driver on a permanent monthly salary, or paid per day he works?</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <x-input-label for="driver_type" :value="__('Driver Type')" />
+                <select id="driver_type" name="driver_type" x-model="driverType" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm" required>
+                    @foreach(\App\Enums\DriverType::cases() as $type)
+                        <option value="{{ $type->value }}">{{ $type->value }}</option>
+                    @endforeach
+                </select>
+                <x-input-error :messages="$errors->get('driver_type')" class="mt-2" />
+            </div>
+
+            <div x-cloak x-show="driverType === @js(\App\Enums\DriverType::Permanent->value)">
+                <x-input-label for="monthly_salary" :value="__('Monthly Salary')" />
+                <x-text-input id="monthly_salary" class="block mt-1 w-full" type="number" name="monthly_salary" min="0" step="0.01" placeholder="15000" :value="old('monthly_salary', $driver?->monthly_salary)" />
+                <p class="text-xs text-gray-500 mt-1">Fixed amount paid every month.</p>
+                <x-input-error :messages="$errors->get('monthly_salary')" class="mt-2" />
+            </div>
+
+            <div x-cloak x-show="driverType === @js(\App\Enums\DriverType::PerDay->value)">
+                <x-input-label for="per_day_salary" :value="__('Per Day Salary')" />
+                <x-text-input id="per_day_salary" class="block mt-1 w-full" type="number" name="per_day_salary" min="0" step="0.01" placeholder="800" :value="old('per_day_salary', $driver?->per_day_salary)" />
+                <p class="text-xs text-gray-500 mt-1">Fixed amount paid for each day he works.</p>
+                <x-input-error :messages="$errors->get('per_day_salary')" class="mt-2" />
+            </div>
         </div>
     </div>
 

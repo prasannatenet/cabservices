@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\BookingStatus;
+use App\Enums\DriverType;
 use App\Models\Booking;
 use App\Models\City;
 use App\Models\Driver;
@@ -218,6 +219,8 @@ class DriverDashboardTest extends TestCase
             'license_expiry' => now()->addYears(3)->toDateString(),
             'current_city_id' => $city->id,
             'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
             'login_id' => 'ramesh123',
             'login_password' => 'secret1234',
         ]);
@@ -258,6 +261,8 @@ class DriverDashboardTest extends TestCase
             'license_expiry' => $driver->license_expiry,
             'current_city_id' => $driver->current_city_id,
             'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
             'login_id' => 'driver002',
             'login_password' => 'newsecret123',
         ]);

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\DriverType;
 use App\Models\City;
 use App\Models\Driver;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -64,6 +65,33 @@ class DriverFactory extends Factory
             'license_expiry' => fake()->dateTimeBetween('+1 year', '+5 years')->format('Y-m-d'),
             'current_city_id' => City::factory(),
             'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => fake()->randomFloat(2, 8000, 40000),
+            'per_day_salary' => null,
         ];
+    }
+
+    /**
+     * A driver paid a fixed amount for each day worked instead of a monthly salary.
+     */
+    public function perDay(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'driver_type' => DriverType::PerDay->value,
+            'monthly_salary' => null,
+            'per_day_salary' => fake()->randomFloat(2, 300, 3000),
+        ]);
+    }
+
+    /**
+     * A driver on a fixed monthly salary.
+     */
+    public function permanent(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'driver_type' => DriverType::Permanent->value,
+            'per_day_salary' => null,
+            'monthly_salary' => fake()->randomFloat(2, 8000, 40000),
+        ]);
     }
 }

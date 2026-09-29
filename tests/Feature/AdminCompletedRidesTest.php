@@ -225,11 +225,16 @@ class AdminCompletedRidesTest extends TestCase
         $response->assertSee('412 km');
         // A ride that has not finished is on his history, but it has no distance yet.
         $response->assertSee('BKG-0003');
+
+        // The driver is shown his rides and their distance, never what they cost.
         $response->assertViewHas('totals', function (array $totals): bool {
             return $totals['rides'] === 2
                 && $totals['total_km'] === 1032
-                && $totals['total_amount'] === 12560.0;
+                && ! array_key_exists('total_amount', $totals);
         });
+
+        $response->assertDontSee('12,560.00');
+        $response->assertDontSee('Total Billed');
     }
 
     public function test_a_ride_closed_before_its_vehicle_had_a_rate_card_is_priced_from_the_rate_card_today(): void

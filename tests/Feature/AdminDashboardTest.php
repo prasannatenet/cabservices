@@ -38,16 +38,32 @@ class AdminDashboardTest extends TestCase
 
         $html = $this->actingAs($admin)->get(route('admin.dashboard'))->getContent();
 
-        // The layout already centres the content and gives it its padding, so
-        // the view must not wrap it in a second centred, padded container.
+        // The layout already gives the content its padding, so the view must not
+        // wrap it in a second padded container.
         $this->assertStringNotContainsString('class="py-12"', $html);
 
-        // The layout centres the page twice: the page heading and the content
-        // below it. The view must not add a third.
-        $this->assertSame(
-            2,
-            substr_count($html, 'max-w-7xl mx-auto'),
-            'Only the layout may centre the page content.'
+        // The layout no longer caps the content width: tables and cards must be
+        // able to fill the main content area. The view must not re-introduce a
+        // centred, width-capped wrapper of its own either.
+        $this->assertStringNotContainsString('max-w-7xl mx-auto', $html);
+    }
+
+    public function test_admin_tables_fill_the_main_content_width()
+    {
+        $admin = User::factory()->create();
+
+        $html = $this->actingAs($admin)->get(route('admin.dashboard'))->getContent();
+
+        // The layout main must span the full width available next to the sidebar.
+        $this->assertMatchesRegularExpression(
+            '/<main class="[^"]*\bw-full\b[^"]*">/',
+            $html,
+            'The admin main content area must be full width.'
         );
+
+        // Tables are styled through the shared .admin-table component so every
+        // listing in the panel looks the same and stretches to the card edges.
+        $this->assertStringContainsString('<table class="admin-table">', $html);
+        $this->assertStringContainsString('class="admin-table-scroll"', $html);
     }
 }

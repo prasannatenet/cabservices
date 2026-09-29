@@ -9,7 +9,9 @@
     </x-slot>
 
     <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden">
-        <!-- What his finished rides added up to -->
+        <!-- What his finished rides added up to. The price of a ride is the
+             operator's business, so a per day driver is shown his own
+             earnings from his daily rate instead of the ride total. -->
         <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-800/60 border-b border-gray-100 dark:border-gray-800/60">
             <div class="p-6">
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Rides Completed</p>
@@ -20,8 +22,17 @@
                 <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ number_format($totals['total_km']) }} <span class="text-base">km</span></p>
             </div>
             <div class="p-6">
-                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Billed</p>
-                <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ number_format($totals['total_amount'], 2) }}</p>
+                @if($driver->isPaidPerDay())
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">My Total Earnings</p>
+                    <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ number_format($totals['earnings'], 2) }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {{ number_format($driver->per_day_salary, 2) }} per day &times; {{ number_format($totals['days']) }} day(s)
+                    </p>
+                @else
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Driver Type</p>
+                    <p class="mt-1 text-2xl font-display font-bold text-gray-900 dark:text-white">{{ $driver->driver_type?->value ?? 'Permanent' }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $driver->formattedSalary() ?? 'Salary not set' }}</p>
+                @endif
             </div>
         </div>
 
@@ -105,8 +116,12 @@
                                     <a href="{{ route('driver.trips.show', $ride) }}" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
                                         Trip Sheet
                                     </a>
-                                    @if($ride->hasTripFare())
-                                        <p class="mt-1 text-xs font-bold text-green-600 dark:text-green-400">{{ number_format((float) $ride->total_amount, 2) }}</p>
+                                    @php $earnings = $driver->earningsFor($ride); @endphp
+                                    @if($earnings)
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {{ $earnings['days'] }} day(s) &times; {{ number_format($earnings['rate'], 2) }}
+                                        </p>
+                                        <p class="mt-0.5 text-xs font-bold text-green-600 dark:text-green-400">{{ number_format($earnings['total'], 2) }}</p>
                                     @endif
                                 @else
                                     <span class="text-xs text-gray-400 dark:text-gray-500">&mdash;</span>

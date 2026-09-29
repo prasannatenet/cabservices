@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DriverType;
 use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,6 +28,8 @@ class DriverAadhaarTest extends TestCase
             'license_expiry' => now()->addYear()->format('Y-m-d'),
             'current_city_id' => $driver->current_city_id,
             'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
         ], $overrides);
     }
 

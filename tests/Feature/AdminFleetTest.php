@@ -75,10 +75,17 @@ class AdminFleetTest extends TestCase
         $response->assertSee('Fleet Details');
         $response->assertSee($vehicle->name);
         $response->assertSee($vehicle->registration_number);
+        // The rate card is shown with a rupee sign and thousands separators, so a
+        // vehicle on 12.50 per km, 1,800.00 per day and 250 included km reads out
+        // as those exact figures rather than as mojibake.
         $response->assertSee('12.50');
-        $response->assertSee('1800.00');
+        $response->assertSee('1,800.00');
         $response->assertSee('250');
+        $response->assertSee('km included per day');
         $response->assertSee('15 Aug, 2026');
+        // The rupee sign is a real character in the page, not a broken encoding.
+        $response->assertSee('&#8377;', escape: false);
+        $response->assertDontSee("\xC3\xA2", escape: false);
         $response->assertSee(asset('storage/vehicles/documents/insurance.jpg'));
         $response->assertSee(asset('storage/vehicles/documents/rc.jpg'));
     }

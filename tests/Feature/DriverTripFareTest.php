@@ -21,8 +21,12 @@ use Tests\TestCase;
  *
  * The Tata Nexon of the fleet is on 5,500 for a day of 500 km and 13 for every
  * kilometre above that, so a ride of 412 km is billed 5,500 and a ride of 620 km
- * is billed 5,500 + 120 x 13 = 7,060. Both the driver on his trip sheet and the
- * admin on the booking screen see the amount and the figures it came out of.
+ * is billed 5,500 + 120 x 13 = 7,060.
+ *
+ * The bill is the operator's business: only the admin sees the amount and the
+ * figures it came out of. The driver is never shown the rate card or the price
+ * of a ride. A driver who is paid per day is shown what the trip earned him from
+ * his own daily rate instead.
  */
 class DriverTripFareTest extends TestCase
 {
@@ -264,7 +268,7 @@ class DriverTripFareTest extends TestCase
         $this->assertStringContainsString('plus 120 extra km at 13.00', $remarks);
     }
 
-    public function test_ending_the_ride_reports_the_amount_to_the_driver(): void
+    public function test_ending_the_ride_does_not_report_the_amount_to_the_driver(): void
     {
         $booking = $this->confirmedBooking();
         $this->startTrip($booking);
@@ -274,10 +278,10 @@ class DriverTripFareTest extends TestCase
                 'end_odometer_km' => self::START_KM + 620,
                 'end_odometer_photo' => UploadedFile::fake()->create('odometer-end.jpg', 20, 'image/jpeg'),
             ])
-            ->assertSessionHas('success', 'Trip completed. Total distance: 620 km, amount billed: 7,060.00.');
+            ->assertSessionHas('success', 'Trip completed. Total distance: 620 km.');
     }
 
-    public function test_the_trip_sheet_shows_the_rate_card_before_the_ride_is_closed(): void
+    public function test_the_trip_sheet_does_not_show_the_rate_card_before_the_ride_is_closed(): void
     {
         $booking = $this->confirmedBooking();
         $this->startTrip($booking);
@@ -285,38 +289,50 @@ class DriverTripFareTest extends TestCase
         $response = $this->actingAs($this->driverUser)->get(route('driver.trips.show', $booking));
 
         $response->assertOk();
-        $response->assertSee('What This Ride Will Cost');
-        $response->assertSee('5,500.00 per day');
-        $response->assertSee('covering the first 500 km');
-        $response->assertSee('13.00 for every kilometre above that');
-        $response->assertDontSee('Total Amount');
+        $response->assertDontSee('What This Ride Will Cost');
+        $response->assertDontSee('5,500.00 per day');
+        $response->assertDontSee('13.00 for every kilometre above that');
     }
 
-    public function test_the_driver_sees_the_amount_and_the_figures_it_came_out_of(): void
+    public function test_the_driver_does_not_see_the_amount_the_ride_is_billed_at(): void
     {
         $booking = $this->driveAndEndTrip($this->confirmedBooking(), 620);
 
         $response = $this->actingAs($this->driverUser)->get(route('driver.trips.show', $booking));
 
         $response->assertOk();
-        $response->assertSee('Total Amount');
-        $response->assertSee('7,060.00');
-        $response->assertSee('1 day(s)');
-        $response->assertSee('covering 500 km');
-        $response->assertSee('120 extra km');
+        $response->assertDontSee('7,060.00');
+        $response->assertDontSee('Total Amount');
+        $response->assertDontSee('covering 500 km');
+        $response->assertDontSee('120 extra km');
     }
 
-    public function test_the_rides_list_shows_the_amount_of_a_finished_ride(): void
+    public function test_the_rides_list_does_not_show_the_amount_of_a_finished_ride(): void
     {
         $this->driveAndEndTrip($this->confirmedBooking(), 620);
 
         $response = $this->actingAs($this->driverUser)->get(route('driver.rides'));
 
         $response->assertOk();
-        $response->assertSee('7,060.00');
+        $response->assertDontSee('7,060.00');
+        $response->assertDontSee('Total Billed');
     }
 
-    public function test_the_admin_sees_the_amount_and_the_figures_it_came_out_of(): void
+    public function test_a_permanent_driver_is_not_shown_ride_earnings(): void
+    {
+        $booking = $this->driveAndEndTrip($this->confirmedBooking(), 620);
+
+        $this->actingAs($this->driverUser)->get(route('driver.trips.show', $booking))
+            ->assertOk()
+            ->assertDontSee('My Earnings for This Ride');
+
+        $this->actingAs($this->driverUser)->get(route('driver.rides'))
+            ->assertOk()
+            ->assertDontSee('My Total Earnings')
+            ->assertSee('Permanent');
+    }
+
+    public function test_the_admin_still_sees_the_amount_and_the_figures_it_came_out_of(): void
     {
         $booking = $this->driveAndEndTrip($this->confirmedBooking(), 620);
 
@@ -347,9 +363,11 @@ class DriverTripFareTest extends TestCase
             ->assertOk()
             ->assertSee('No rate card was filled in for Tata Nexon');
 
+        // The driver is never told the rate card, so an absent one changes
+        // nothing on his trip sheet.
         $this->actingAs($this->driverUser)
             ->get(route('driver.trips.show', $booking))
             ->assertOk()
-            ->assertSee('No rate card was filled in for Tata Nexon');
+            ->assertDontSee('No rate card was filled in for Tata Nexon');
     }
 }

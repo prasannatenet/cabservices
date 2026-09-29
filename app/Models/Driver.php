@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\AssignmentResponseStatus;
 use App\Enums\DriverStatus;
+use App\Enums\DriverType;
+use App\Services\TripFareCalculator;
 use Database\Factories\DriverFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,6 +25,7 @@ class Driver extends Model
         'license_number', 'license_expiry', 'license_document', 'experience_years', 'profile_photo',
         'aadhaar_number', 'aadhaar_photo', 'permanent_address', 'current_address',
         'current_city_id', 'status',
+        'driver_type', 'monthly_salary', 'per_day_salary',
     ];
 
     /**
@@ -73,6 +76,9 @@ class Driver extends Model
     {
         return [
             'license_expiry' => 'date',
+            'driver_type' => DriverType::class,
+            'monthly_salary' => 'decimal:2',
+            'per_day_salary' => 'decimal:2',
         ];
     }
 
@@ -164,6 +170,89 @@ class Driver extends Model
     public function leaves()
     {
         return $this->hasMany(DriverLeave::class);
+    }
+
+    /**
+     * The salary that applies to this driver: the monthly figure for a permanent
+     * driver, the daily figure for a per day driver.
+     */
+    public function salary(): ?float
+    {
+        if ($this->driver_type?->isPermanent()) {
+            return $this->monthly_salary !== null ? (float) $this->monthly_salary : null;
+        }
+
+        return $this->per_day_salary !== null ? (float) $this->per_day_salary : null;
+    }
+
+    /**
+     * The salary with its period spelled out, e.g. "15,000.00 per month".
+     * Returns null when the driver has no salary recorded for his type.
+     */
+    public function formattedSalary(): ?string
+    {
+        $salary = $this->salary();
+
+        if ($salary === null) {
+            return null;
+        }
+
+        return number_format($salary, 2).' '.$this->driver_type?->salaryPeriodLabel();
+    }
+
+    /**
+     * Whether this driver is paid for each day he works, so what he earns can be
+     * worked out from the number of days a trip covers.
+     */
+    public function isPaidPerDay(): bool
+    {
+        return $this->driver_type === DriverType::PerDay;
+    }
+
+    /**
+     * What this driver earns for a ride, from his own per day salary.
+     *
+     * Null when the driver is not paid per day or has no daily rate on record,
+     * because there is then no figure of his own to show for the ride.
+     *
+     * @return array{days: int, rate: float, total: float}|null
+     */
+    public function earningsFor(Booking $booking): ?array
+    {
+        if (! $this->isPaidPerDay() || $this->per_day_salary === null) {
+            return null;
+        }
+
+        // The same day count the hire is billed on, so what the driver is shown
+        // for a trip always matches the days the trip actually covers.
+        $days = app(TripFareCalculator::class)->billedDays($booking);
+        $rate = (float) $this->per_day_salary;
+
+        return [
+            'days' => $days,
+            'rate' => $rate,
+            'total' => round($rate * $days, 2),
+        ];
+    }
+
+    /**
+     * What this driver has earned across the given rides from his per day salary.
+     *
+     * @param  iterable<Booking>  $bookings
+     */
+    public function earningsAcross(iterable $bookings): float
+    {
+        $total = 0.0;
+
+        foreach ($bookings as $booking) {
+            $earnings = $this->earningsFor($booking);
+
+            if ($earnings !== null) {
+                $total += $earnings['total'];
+            }
+        }
+
+        return round($total, 2);
     }
 
     /**
