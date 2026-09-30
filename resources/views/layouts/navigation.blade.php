@@ -79,6 +79,10 @@
 
     <!-- User Profile / Footer -->
     <div class="p-4 border-t border-gray-200 dark:border-gray-800">
+
+        {{-- Notification Bell --}}
+        <x-notification-bell />
+
         <div class="flex items-center gap-3 px-2 mb-4">
             <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-bold text-gray-700 dark:text-gray-200">
                 {{ substr(Auth::user()->name, 0, 1) }}
@@ -104,3 +108,4 @@
         </form>
     </div>
 </aside>
+

@@ -29,19 +29,46 @@
                     @csrf
                     @method('PUT')
 
-                    <label class="flex items-start gap-3">
-                        <input type="checkbox" name="mail_enabled" value="1" @checked(old('mail_enabled', $mailEnabled)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                        <span class="text-sm text-gray-700 dark:text-gray-300">
-                            Enable email notifications
-                            <span class="block text-xs text-gray-500 dark:text-gray-400">Master switch. When off, no booking mail is sent at all.</span>
-                        </span>
-                    </label>
+                    <div>
+                        <label for="mail_smtp_host" class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMTP Host</label>
+                        <input type="text" name="mail_smtp_host" id="mail_smtp_host" value="{{ old('mail_smtp_host', $smtpHost) }}" placeholder="smtp.mailtrap.io" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        @error('mail_smtp_host') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
 
+                    <div>
+                        <label for="mail_smtp_port" class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMTP Port</label>
+                        <input type="text" name="mail_smtp_port" id="mail_smtp_port" value="{{ old('mail_smtp_port', $smtpPort) }}" placeholder="2525" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        @error('mail_smtp_port') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <label for="mail_smtp_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMTP Username</label>
+                        <input type="text" name="mail_smtp_username" id="mail_smtp_username" value="{{ old('mail_smtp_username', $smtpUsername) }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        @error('mail_smtp_username') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <label for="mail_smtp_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMTP Password / API Key</label>
+                        <input type="password" name="mail_smtp_password" id="mail_smtp_password" value="" placeholder="{{ $smtpPasswordIsSet ? 'Leave blank to keep current password' : 'Enter password or API key' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        @if($smtpPasswordIsSet)
+                            <p class="mt-1 text-xs text-green-600 dark:text-green-400">✓ A password is currently saved. Leave blank to keep it unchanged.</p>
+                        @endif
+                        @error('mail_smtp_password') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <label for="mail_smtp_encryption" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Encryption</label>
+                        <select name="mail_smtp_encryption" id="mail_smtp_encryption" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="tls" @selected(old('mail_smtp_encryption', $smtpEncryption) === 'tls')>STARTTLS (usually port 587)</option>
+                            <option value="ssl" @selected(old('mail_smtp_encryption', $smtpEncryption) === 'ssl')>SSL/TLS (usually port 465)</option>
+                        </select>
+                        @error('mail_smtp_encryption') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
 
                     <div>
                         <label for="mail_from_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Address</label>
                         <input type="email" name="mail_from_address" id="mail_from_address" value="{{ old('mail_from_address', $fromAddress) }}" placeholder="bookings@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The sender shown on every notification. Leave empty to use the address configured in the environment.</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The sender shown on every notification.</p>
                         @error('mail_from_address') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
 
@@ -49,56 +76,6 @@
                         <label for="mail_from_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Name</label>
                         <input type="text" name="mail_from_name" id="mail_from_name" value="{{ old('mail_from_name', $fromName) }}" placeholder="{{ config('app.name') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                         @error('mail_from_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                    </div>
-
-
-                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Booking request</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Sent when a customer submits the booking form.</p>
-
-                        <div class="space-y-3">
-                            <label class="flex items-start gap-3">
-                                <input type="checkbox" name="mail_notify_on_booking_request" value="1" @checked(old('mail_notify_on_booking_request', $notifyOnBookingRequest)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                                <span class="text-sm text-gray-700 dark:text-gray-300">
-                                    Notify the operations team
-                                    <span class="block text-xs text-gray-500 dark:text-gray-400">Sends the new request to the recipients below.</span>
-                                </span>
-                            </label>
-
-                            <label class="flex items-start gap-3">
-                                <input type="checkbox" name="mail_notify_customer" value="1" @checked(old('mail_notify_customer', $notifyCustomer)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                                <span class="text-sm text-gray-700 dark:text-gray-300">
-                                    Acknowledge the customer
-                                    <span class="block text-xs text-gray-500 dark:text-gray-400">Only sent when the customer provided an email address.</span>
-                                </span>
-                            </label>
-                        </div>
-
-                        <div class="mt-4">
-                            <label for="mail_booking_notification_recipients" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Notification Recipients</label>
-                            <textarea name="mail_booking_notification_recipients" id="mail_booking_notification_recipients" rows="3" placeholder="ops@example.com&#10;dispatch@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">{{ old('mail_booking_notification_recipients', implode("\n", $recipients)) }}</textarea>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">One address per line. When empty, every admin account is notified.</p>
-                            @error('mail_booking_notification_recipients') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                            @error('mail_booking_notification_recipients.*') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-
-
-                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Driver assignment</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Sent when a driver is assigned to a booking, and when the booking is confirmed.</p>
-
-                        <label class="flex items-start gap-3">
-                            <input type="checkbox" name="mail_notify_customer_on_driver_assigned" value="1" @checked(old('mail_notify_customer_on_driver_assigned', $notifyCustomerOnDriverAssigned)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
-                            <span class="text-sm text-gray-700 dark:text-gray-300">
-                                Notify the customer
-                                <span class="block text-xs text-gray-500 dark:text-gray-400">Sends the driver and vehicle details to the customer.</span>
-                            </span>
-                        </label>
-
-                        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                            The assigned driver always receives his trip details on the address of his driver record.
-                        </p>
                     </div>
 
                     <div class="flex justify-end gap-4">

@@ -6,6 +6,7 @@ use Database\Factories\SettingFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 
 class Setting extends Model
 {
@@ -112,6 +113,40 @@ class Setting extends Model
     public static function flushCache(): void
     {
         Cache::forget(static::CACHE_KEY);
+    }
+
+    /**
+     * Push the stored SMTP credentials into Laravel's live mail config so that
+     * every outgoing message in this request uses the admin's settings instead
+     * of the .env fallback.
+     *
+     * Symfony only understands "smtp" (STARTTLS) and "smtps" (SSL/TLS) DSN
+     * schemes. Legacy values like "tls" and "ssl" are mapped accordingly.
+     */
+    public static function applyMailConfig(): void
+    {
+        $host = static::string('mail.smtp_host');
+
+        if (! $host) {
+            return;
+        }
+
+        $encryption = static::string('mail.smtp_encryption', 'tls');
+
+        $scheme = match (strtolower($encryption)) {
+            'ssl', 'smtps' => 'smtps',
+            'tls', 'smtp' => 'smtp',
+            default => null,
+        };
+
+        Config::set('mail.default', 'smtp');
+        Config::set('mail.mailers.smtp.scheme', $scheme);
+        Config::set('mail.mailers.smtp.host', $host);
+        Config::set('mail.mailers.smtp.port', (int) (static::string('mail.smtp_port') ?: 587));
+        Config::set('mail.mailers.smtp.username', static::string('mail.smtp_username'));
+        Config::set('mail.mailers.smtp.password', static::string('mail.smtp_password'));
+        Config::set('mail.from.address', static::string('mail.from_address', (string) config('mail.from.address')));
+        Config::set('mail.from.name', static::string('mail.from_name', (string) config('mail.from.name')));
     }
 
     /**

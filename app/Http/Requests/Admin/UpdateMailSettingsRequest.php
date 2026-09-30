@@ -31,6 +31,11 @@ class UpdateMailSettingsRequest extends FormRequest
             'mail_notify_customer_on_driver_assigned' => ['nullable', 'boolean'],
             'mail_booking_notification_recipients' => ['nullable', 'array', 'max:50'],
             'mail_booking_notification_recipients.*' => ['required', 'email', 'max:255'],
+            'mail_smtp_host' => ['nullable', 'string', 'max:255'],
+            'mail_smtp_port' => ['nullable', 'string', 'max:255'],
+            'mail_smtp_username' => ['nullable', 'string', 'max:1024'],
+            'mail_smtp_password' => ['nullable', 'string', 'max:2048'],
+            'mail_smtp_encryption' => ['nullable', 'string', 'max:255'],
         ];
     }
 

@@ -1,5 +1,3 @@
-
-
 import Alpine from 'alpinejs';
 
 window.Alpine = Alpine;
@@ -22,6 +20,95 @@ Alpine.data('desktopNotificationCard', () => ({
 
         this.message = result.message;
         this.failed = !result.ok;
+    },
+}));
+
+/**
+ * The bell in the navigation bar.
+ *
+ * The route URLs are passed in as options because the admin and the associate
+ * render the same bell from their own navigation partials.
+ */
+Alpine.data('notificationBell', (routes = {}) => ({
+    open: false,
+    loading: false,
+    notifications: [],
+    unreadCount: 0,
+
+    init() {
+        this.load();
+    },
+
+    async load() {
+        this.loading = true;
+
+        try {
+            const response = await fetch(routes.index, {
+                headers: { Accept: 'application/json' },
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+
+            this.notifications = data.notifications ?? [];
+            this.unreadCount = data.unread_count ?? 0;
+        } catch (error) {
+            // A failed poll must never break the panel around the bell.
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    async toggle() {
+        this.open = !this.open;
+
+        if (this.open) {
+            this.load();
+        }
+    },
+
+    /**
+     * Clear one notification. The badge drops straight away so the click feels
+     * instant; a request that fails is corrected by the next load.
+     */
+    async markRead(id) {
+        if (!this.notifications.some((notification) => notification.id === id)) {
+            return;
+        }
+
+        this.notifications = this.notifications.filter((notification) => notification.id !== id);
+        this.unreadCount = Math.max(0, this.unreadCount - 1);
+
+        try {
+            await this.post(routes.read.replace('__id__', encodeURIComponent(id)));
+        } catch (error) {
+            this.load();
+        }
+    },
+
+    async markAllRead() {
+        this.notifications = [];
+        this.unreadCount = 0;
+
+        try {
+            await this.post(routes.readAll);
+        } catch (error) {
+            this.load();
+        }
+    },
+
+    post(url) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+            },
+        });
     },
 }));
 
@@ -149,3 +236,11 @@ if (pushKey) {
     pushRegistration();
 }
 
+
+/**
+ * Echo exposes an expressive API for subscribing to channels and listening
+ * for events that are broadcast by Laravel. Echo and event broadcasting
+ * allow your team to quickly build robust real-time web applications.
+ */
+
+import './echo';

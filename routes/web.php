@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\InAppNotificationController;
 use App\Http\Controllers\NotificationSubscriptionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,7 @@ use App\Http\Controllers\Admin\DriverLeaveController;
 use App\Http\Controllers\Admin\NearbyCityController;
 use App\Http\Controllers\Admin\ServiceTypeController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\TrackingController;
 use App\Http\Controllers\Admin\VehicleCategoryController;
 use App\Http\Controllers\Admin\VehicleController;
 use App\Http\Controllers\Associate\BookingController as AssociateBookingController;
@@ -139,11 +141,24 @@ Route::middleware(['auth', 'role:admin,associate', 'verified'])->group(function 
     Route::get('notifications/vapid-key', [NotificationSubscriptionController::class, 'key'])->name('notifications.key');
     Route::post('notifications/subscription', [NotificationSubscriptionController::class, 'store'])->name('notifications.subscription.store');
     Route::delete('notifications/subscription', [NotificationSubscriptionController::class, 'destroy'])->name('notifications.subscription.destroy');
+
+    // The bell in the navigation bar. It reads the database channel rows of the
+    // same notifications, so it answers instantly and needs no queue worker.
+    Route::get('notifications', [InAppNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read-all', [InAppNotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('notifications/{notification}/read', [InAppNotificationController::class, 'markRead'])->name('notifications.read');
 });
 
 // For convenience, redirect /dashboard to the dashboard of the authenticated role
 Route::get('/dashboard', function () {
     return redirect()->route(auth()->user()->homeRouteName());
 })->middleware(['auth'])->name('dashboard');
+
+// Live Tracking Routes (No Auth required for viewing, but UUID is unguessable)
+Route::get('/admin/track/ride/{tracking_id}', [TrackingController::class, 'show'])->name('tracking.show');
+Route::get('/api/track/ride/{tracking_id}/location', [TrackingController::class, 'location'])->name('tracking.location');
+
+// Driver location update route (Requires driver auth)
+Route::middleware(['auth', 'role:driver'])->post('/driver/rides/{booking}/location', [TrackingController::class, 'updateLocation'])->name('driver.location.update');
 
 require __DIR__.'/auth.php';

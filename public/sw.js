@@ -17,14 +17,23 @@ self.addEventListener('push', (event) => {
         payload = { body: event.data ? event.data.text() : '' };
     }
 
-    event.waitUntil(self.registration.showNotification(payload.title || 'Cab Services', {
-        body: payload.body || '',
+    // The notification puts its own fields in `data()` and the toast text at the
+    // top level, so title/body are read from the top and the rest from `data`.
+    // `requireInteraction` is a top level flag of the message itself.
+    const data = payload.data || {};
+    const title = payload.title || data.title || 'Cab Services';
+    const body = payload.body || data.body || '';
+
+    event.waitUntil(self.registration.showNotification(title, {
+        body,
         icon: '/favicon.ico',
         badge: '/favicon.ico',
-        tag: payload.booking_id ? 'booking-' + payload.booking_id : undefined,
+        // Tagging by booking replaces an earlier toast for the same ride instead
+        // of stacking them up when the driver answers more than once.
+        tag: data.booking_id ? 'booking-' + data.booking_id : undefined,
         // A refusal sets this on the message so the toast stays until dismissed.
         requireInteraction: Boolean(payload.requireInteraction),
-        data: { url: payload.url || '/' },
+        data: { url: data.url || '/' },
     }));
 });
 
@@ -34,12 +43,12 @@ self.addEventListener('notificationclick', (event) => {
     const target = (event.notification.data && event.notification.data.url) || '/';
 
     event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-        // Reuse a tab that is already open rather than piling up new ones.
-        for (const client of clientList) {
-            if ('focus' in client) {
-                client.navigate(target);
-                return client.focus();
-            }
+        // Reuse a tab of this app rather than piling up new ones, but leave
+        // unrelated tabs alone.
+        const sameOrigin = clientList.find((client) => client.url.startsWith(self.location.origin));
+
+        if (sameOrigin && 'focus' in sameOrigin) {
+            return sameOrigin.navigate(target).then((client) => client.focus());
         }
 
         return self.clients.openWindow(target);

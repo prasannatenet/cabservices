@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\UpdateMailSettingsRequest;
 use App\Http\Requests\Admin\UpdatePushSettingsRequest;
 use App\Mail\SettingsTestMail;
 use App\Models\Setting;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
@@ -25,17 +26,23 @@ class SettingController extends Controller
             'notifyCustomerOnDriverAssigned' => Setting::boolean('mail.notify_customer_on_driver_assigned', true),
             'recipients' => Setting::list('mail.booking_notification_recipients'),
             'mailer' => config('mail.default'),
+            'smtpHost' => Setting::string('mail.smtp_host'),
+            'smtpPort' => Setting::string('mail.smtp_port', '587'),
+            'smtpUsername' => Setting::string('mail.smtp_username'),
+            'smtpEncryption' => Setting::string('mail.smtp_encryption', 'tls'),
+            // Password is intentionally not sent to the view to avoid exposing it.
+            'smtpPasswordIsSet' => Setting::string('mail.smtp_password') !== '',
             'pushEnabled' => Setting::boolean('push.enabled', true),
             'pushNotifyOnAccept' => Setting::boolean('push.notify_on_accept', true),
             'pushNotifyOnReject' => Setting::boolean('push.notify_on_reject', true),
         ]);
     }
 
-    public function update(UpdateMailSettingsRequest $request)
+    public function update(UpdateMailSettingsRequest $request): RedirectResponse
     {
         $validated = $request->validated();
 
-        Setting::putMany([
+        $data = [
             'mail.enabled' => $request->boolean('mail_enabled'),
             'mail.from_address' => $validated['mail_from_address'] ?? config('mail.from.address'),
             'mail.from_name' => $validated['mail_from_name'] ?? config('mail.from.name'),
@@ -43,7 +50,21 @@ class SettingController extends Controller
             'mail.notify_customer' => $request->boolean('mail_notify_customer'),
             'mail.notify_customer_on_driver_assigned' => $request->boolean('mail_notify_customer_on_driver_assigned'),
             'mail.booking_notification_recipients' => implode("\n", $validated['mail_booking_notification_recipients'] ?? []),
-        ]);
+            'mail.smtp_host' => $validated['mail_smtp_host'] ?? '',
+            'mail.smtp_port' => $validated['mail_smtp_port'] ?? '',
+            'mail.smtp_username' => $validated['mail_smtp_username'] ?? '',
+            'mail.smtp_encryption' => $validated['mail_smtp_encryption'] ?? '',
+        ];
+
+        // Preserve the existing encrypted password when the user leaves the
+        // field blank — an empty submission must not wipe a stored API key.
+        $newPassword = $validated['mail_smtp_password'] ?? '';
+
+        if ($newPassword !== '') {
+            $data['mail.smtp_password'] = $newPassword;
+        }
+
+        Setting::putMany($data);
 
         return redirect()->route('admin.settings.index')
             ->with('success', 'Mail settings updated successfully.');
@@ -52,7 +73,7 @@ class SettingController extends Controller
     /**
      * The opt-in switches for the desktop notifications pushed to the browser.
      */
-    public function updatePush(UpdatePushSettingsRequest $request)
+    public function updatePush(UpdatePushSettingsRequest $request): RedirectResponse
     {
         Setting::putMany([
             'push.enabled' => $request->boolean('push_enabled'),
@@ -65,14 +86,21 @@ class SettingController extends Controller
     }
 
     /**
-     * Send a real message to the admin so the configuration can be verified
-     * before a customer relies on it.
+     * Send a real message through the configured SMTP so the admin can verify
+     * the credentials work before a customer relies on them.
+     *
+     * applyMailConfig() is called explicitly here so the test travels through
+     * exactly the same path that real booking emails use.
      */
-    public function sendTestMail(Request $request)
+    public function sendTestMail(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
         ]);
+
+        // Re-apply config in case the admin just saved new credentials in this
+        // same request — the provider's boot() ran before the save happened.
+        Setting::applyMailConfig();
 
         try {
             Mail::to($validated['email'])->send(new SettingsTestMail($request->user()->name));

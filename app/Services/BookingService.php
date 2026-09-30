@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\BookingStatus;
 use App\Enums\RejectionSource;
+use App\Mail\RideTrackingLinkMail;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
 use App\Models\Driver;
@@ -11,6 +12,7 @@ use App\Models\DriverAssignment;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class BookingService
@@ -235,7 +237,7 @@ class BookingService
             throw new \Exception('This ride cannot be started from its current status ('.$booking->displayStatus().').');
         }
 
-        return DB::transaction(function () use ($booking, $odometerKm, $odometerPhoto, $changedBy) {
+        $booking = DB::transaction(function () use ($booking, $odometerKm, $odometerPhoto, $changedBy) {
             $oldStatus = $booking->status;
 
             $booking->update([
@@ -243,6 +245,7 @@ class BookingService
                 'start_odometer_km' => $odometerKm,
                 'start_odometer_photo' => $odometerPhoto,
                 'trip_started_at' => now(),
+                'tracking_id' => Str::uuid()->toString(),
             ]);
 
             BookingStatusHistory::create([
@@ -255,6 +258,11 @@ class BookingService
 
             return $booking;
         });
+
+        // Send tracking link to Admin
+        Mail::to(config('mail.from.address', 'admin@example.com'))->send(new RideTrackingLinkMail($booking));
+
+        return $booking;
     }
 
     /**

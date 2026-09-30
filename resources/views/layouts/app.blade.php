@@ -15,6 +15,7 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        <style>[x-cloak] { display: none !important; }</style>
     </head>
     <body class="font-sans antialiased text-gray-900 dark:text-gray-100 selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-300 bg-gray-50 dark:bg-[#0a0a0a]">
         <!-- Alpine instance for sidebar state -->
