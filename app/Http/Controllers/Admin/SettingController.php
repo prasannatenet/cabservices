@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateMailSettingsRequest;
+use App\Http\Requests\Admin\UpdatePushSettingsRequest;
 use App\Mail\SettingsTestMail;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -24,6 +25,9 @@ class SettingController extends Controller
             'notifyCustomerOnDriverAssigned' => Setting::boolean('mail.notify_customer_on_driver_assigned', true),
             'recipients' => Setting::list('mail.booking_notification_recipients'),
             'mailer' => config('mail.default'),
+            'pushEnabled' => Setting::boolean('push.enabled', true),
+            'pushNotifyOnAccept' => Setting::boolean('push.notify_on_accept', true),
+            'pushNotifyOnReject' => Setting::boolean('push.notify_on_reject', true),
         ]);
     }
 
@@ -43,6 +47,21 @@ class SettingController extends Controller
 
         return redirect()->route('admin.settings.index')
             ->with('success', 'Mail settings updated successfully.');
+    }
+
+    /**
+     * The opt-in switches for the desktop notifications pushed to the browser.
+     */
+    public function updatePush(UpdatePushSettingsRequest $request)
+    {
+        Setting::putMany([
+            'push.enabled' => $request->boolean('push_enabled'),
+            'push.notify_on_accept' => $request->boolean('push_notify_on_accept'),
+            'push.notify_on_reject' => $request->boolean('push_notify_on_reject'),
+        ]);
+
+        return redirect()->route('admin.settings.index')
+            ->with('success', 'Desktop notification settings updated successfully.');
     }
 
     /**

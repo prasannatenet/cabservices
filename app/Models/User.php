@@ -11,13 +11,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 
 #[Fillable(['name', 'email', 'password', 'status', 'username', 'role'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, HasPushSubscriptions, Notifiable;
 
     public const ROLE_ADMIN = 'admin';
 
@@ -112,5 +113,25 @@ class User extends Authenticatable
             self::ROLE_ASSOCIATE => 'associate.dashboard',
             default => 'driver.dashboard',
         };
+    }
+
+    /**
+     * Whether this user dispatches rides for the given booking, i.e. he is
+     * responsible for the ride and must be told how the driver answered it.
+     *
+     * An admin dispatches every ride. An associate only dispatches the rides
+     * that start in one of the cities he manages, and a driver never does.
+     */
+    public function dispatchesBooking(Booking $booking): bool
+    {
+        if ($this->isDriver()) {
+            return false;
+        }
+
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        return $this->isAssociate() && $this->managesCity($booking->pickup_city_id);
     }
 }

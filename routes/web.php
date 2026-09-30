@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\NotificationSubscriptionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -68,6 +69,7 @@ Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('ad
 
     Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
     Route::put('settings/mail', [SettingController::class, 'update'])->name('settings.update');
+    Route::put('settings/push', [SettingController::class, 'updatePush'])->name('settings.push.update');
     Route::post('settings/mail/test', [SettingController::class, 'sendTestMail'])->name('settings.test-mail');
 
     Route::get('drivers/{driver}/leaves', [DriverLeaveController::class, 'index'])->name('drivers.leaves');
@@ -128,6 +130,15 @@ Route::middleware(['auth', 'role:associate', 'verified'])->prefix('associate')->
     Route::resource('bookings', AssociateBookingController::class)->only(['index', 'show', 'update']);
 
     Route::get('cities', [AssociateCityController::class, 'index'])->name('cities.index');
+});
+
+// Desktop notifications. Both dispatchers answer rides: the admin for the whole
+// fleet and an associate for the cities he manages, so the subscription
+// endpoints are shared by the two panels.
+Route::middleware(['auth', 'role:admin,associate', 'verified'])->group(function () {
+    Route::get('notifications/vapid-key', [NotificationSubscriptionController::class, 'key'])->name('notifications.key');
+    Route::post('notifications/subscription', [NotificationSubscriptionController::class, 'store'])->name('notifications.subscription.store');
+    Route::delete('notifications/subscription', [NotificationSubscriptionController::class, 'destroy'])->name('notifications.subscription.destroy');
 });
 
 // For convenience, redirect /dashboard to the dashboard of the authenticated role

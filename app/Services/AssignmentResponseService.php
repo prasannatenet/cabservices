@@ -20,6 +20,10 @@ use Illuminate\Support\Facades\Log;
  */
 class AssignmentResponseService
 {
+    public function __construct(
+        protected AssignmentNotificationService $notifications,
+    ) {}
+
     /**
      * The driver confirms he will take the ride.
      *
@@ -29,7 +33,7 @@ class AssignmentResponseService
     {
         $this->guardStillOpen($assignment);
 
-        return DB::transaction(function () use ($assignment): Booking {
+        $booking = DB::transaction(function () use ($assignment): Booking {
             $booking = $assignment->booking;
             $oldStatus = $booking->status;
 
@@ -53,6 +57,10 @@ class AssignmentResponseService
 
             return $booking;
         });
+
+        $this->notifications->notifyAccepted($booking, $assignment);
+
+        return $booking;
     }
 
     /**
@@ -111,6 +119,10 @@ class AssignmentResponseService
 
     /**
      * Close an assignment as rejected and release the booking back to the admin.
+     *
+     * The dispatchers are notified once the ride is actually released, so a
+     * driver refusing or the six hour window closing both raise a desktop
+     * notification for whoever has to reassign the ride.
      */
     protected function recordRejection(
         DriverAssignment $assignment,
@@ -118,7 +130,7 @@ class AssignmentResponseService
         string $reason,
         string $remarks
     ): Booking {
-        return DB::transaction(function () use ($assignment, $status, $reason, $remarks): Booking {
+        $booking = DB::transaction(function () use ($assignment, $status, $reason, $remarks): Booking {
             $booking = $assignment->booking()->firstOrFail();
             $oldStatus = $booking->status;
 
@@ -149,6 +161,10 @@ class AssignmentResponseService
 
             return $booking;
         });
+
+        $this->notifications->notifyRejected($booking, $assignment, $status, $reason);
+
+        return $booking;
     }
 
     /**
