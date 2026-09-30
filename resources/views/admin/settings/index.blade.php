@@ -126,4 +126,77 @@
                 </form>
             </div>
     </div>
+
+    <div class="admin-card" x-data="desktopNotificationCard()">
+            <div class="p-6 text-gray-900 dark:text-gray-100">
+
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Desktop notifications</h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 mb-6">
+                    Raise a notification on your computer when a driver accepts or refuses a ride you dispatched.
+                </p>
+
+                <form action="{{ route('admin.settings.push.update') }}" method="POST" class="space-y-6 max-w-2xl">
+                    @csrf
+                    @method('PUT')
+
+                    <label class="flex items-start gap-3">
+                        <input type="checkbox" name="push_enabled" value="1" @checked(old('push_enabled', $pushEnabled)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
+                        <span class="text-sm text-gray-700 dark:text-gray-300">
+                            Enable desktop notifications
+                            <span class="block text-xs text-gray-500 dark:text-gray-400">Master switch. When off, no desktop notification is sent at all.</span>
+                        </span>
+                    </label>
+
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Driver answers</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Sent to every admin, and to the associates managing the city the ride starts in.</p>
+
+                        <label class="flex items-start gap-3">
+                            <input type="checkbox" name="push_notify_on_accept" value="1" @checked(old('push_notify_on_accept', $pushNotifyOnAccept)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">
+                                When a driver accepts
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">Confirms the ride is going ahead.</span>
+                            </span>
+                        </label>
+
+                        <label class="flex items-start gap-3 mt-3">
+                            <input type="checkbox" name="push_notify_on_reject" value="1" @checked(old('push_notify_on_reject', $pushNotifyOnReject)) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">
+                                When a driver refuses, or does not answer in 6 hours
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">Carries the reason, and the toast stays on screen until dismissed.</span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="flex justify-end gap-4">
+                        <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Save Settings</button>
+                    </div>
+                </form>
+
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">This browser</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                        The browser has to allow notifications, so every computer or phone subscribes on its own.
+                    </p>
+
+                    <p x-cloak x-show="message" :class="failed ? 'text-red-500' : 'text-green-600'" class="text-xs mb-4" x-text="message"></p>
+
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" x-on:click="enable"
+                                class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100">
+                            Enable notifications
+                        </button>
+                        <button type="button" x-on:click="disable"
+                                class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600">
+                            Turn off
+                        </button>
+                    </div>
+
+                    <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                        A notification cannot appear while the browser is closed completely.
+                    </p>
+                </div>
+            </div>
+    </div>
+
 </x-app-layout>
