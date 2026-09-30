@@ -84,7 +84,77 @@
                         </div>
                     </div>
 
-                    {{-- NEXT --}}
+                    {{-- Only this associate's own drivers and vehicles are offered:
+                         the ride is his, so the admin's resources are not his to
+                         reassign, and they are never listed here. --}}
+                    @php $availableDrivers = $availableDrivers ?? collect(); @endphp
+
+                    @if(session('success'))
+                        <div class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-sm">{{ session('success') }}</div>
+                    @endif
+                    @if(session('error'))
+                        <div class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">{{ session('error') }}</div>
+                    @endif
+
+                    {{-- A finished trip is a permanent record, so the form is replaced
+                         by a notice rather than shown in a disabled state. --}}
+                    @if($booking->isLocked())
+                        <div class="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/20 p-4">
+                            <p class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Trip completed &mdash; read only</p>
+                            <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
+                                This trip has ended, so its driver, vehicle and status can no longer be changed.
+                            </p>
+                            @if($booking->trip_ended_at)
+                                <p class="mt-1 text-xs text-emerald-600 dark:text-emerald-500">Ended {{ $booking->trip_ended_at->format('d M, Y \a\t h:i A') }}</p>
+                            @endif
+                        </div>
+                    @else
+                    <form action="{{ route('associate.bookings.update', $booking) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Update Status</label>
+                                <select name="status" class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
+                                    @foreach(\App\Enums\BookingStatus::cases() as $status)
+                                        <option value="{{ $status->value }}" {{ $booking->status === $status ? 'selected' : '' }}>{{ $status->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign/Change Vehicle</label>
+                                <select name="vehicle_id" class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
+                                    <option value="">-- Select Vehicle --</option>
+                                    @foreach($availableVehicles as $vehicle)
+                                        <option value="{{ $vehicle->id }}" {{ $booking->vehicle_id == $vehicle->id ? 'selected' : '' }}>
+                                            {{ $vehicle->name }} ({{ $vehicle->vehicle_type }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">{{ $availableVehicles->count() }} of your vehicle(s) available.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign/Change Driver</label>
+                                <select name="driver_id" class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
+                                    <option value="">-- Select Driver --</option>
+                                    @foreach($availableDrivers as $driver)
+                                        <option value="{{ $driver->id }}" {{ $booking->driver_id == $driver->id ? 'selected' : '' }}>
+                                            {{ $driver->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">{{ $availableDrivers->count() }} of your driver(s) available{{ $booking->dropCity ? ' willing to go to '.$booking->dropCity->name : '' }}.</p>
+                            </div>
+
+                            <button type="submit" class="w-full mt-4 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                    @endif
                 </div>
             </div>
         </div>

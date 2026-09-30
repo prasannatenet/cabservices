@@ -38,6 +38,16 @@
                             @endforeach
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Associate</label>
+                        <select name="associate" class="block w-44 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                            <option value="">All</option>
+                            <option value="{{ $adminOwner }}" @selected(request('associate') === $adminOwner)>Admin Created</option>
+                            @foreach($associates as $associate)
+                                <option value="{{ $associate->id }}" @selected(request('associate') == $associate->id)>{{ $associate->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </x-admin-filter-bar>
             </div>
             
@@ -49,6 +59,7 @@
                             <th scope="col" class="text-left">Name & Contact</th>
                             <th scope="col" class="text-left">License</th>
                             <th scope="col" class="text-left">City</th>
+                            <th scope="col" class="text-left">Associate</th>
                             <th scope="col" class="text-left">Login</th>
                             <th scope="col" class="text-left">Status</th>
                             <th scope="col" class="text-right">Actions</th>
@@ -69,6 +80,9 @@
                             </td>
                             <td class="whitespace-nowrap">
                                 {{ optional($driver->currentCity)->name ?? 'N/A' }}
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <x-associate-badge :record="$driver" />
                             </td>
                             <td class="whitespace-nowrap">
                                 @if($driver->user)
@@ -101,7 +115,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="admin-table-empty">No drivers found.</td>
+                            <td colspan="8" class="admin-table-empty">No drivers found.</td>
                         </tr>
                         @endforelse
                     </tbody>

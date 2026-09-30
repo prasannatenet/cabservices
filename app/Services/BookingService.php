@@ -105,6 +105,13 @@ class BookingService
 
     public function assignDriver(Booking $booking, $driverId, $adminId)
     {
+        // Assigning a driver rewrites the status back to "Driver Assigned", which
+        // would drag a finished trip back into play, so a completed ride is
+        // never reopened.
+        if ($booking->isLocked()) {
+            throw new \Exception($booking->lockedMessage());
+        }
+
         $this->ensureDriverWillingToGoTo($booking, $driverId);
 
         $booking = DB::transaction(function () use ($booking, $driverId, $adminId) {
@@ -114,6 +121,10 @@ class BookingService
                 'status' => BookingStatus::DRIVER_ASSIGNED->value,
                 'driver_id' => $driverId,
             ]);
+
+            // Handing a ride to this driver hands it to the associate who owns
+            // him, and only to him: the ride's pickup city has no say in it.
+            $booking->syncAssociateFromAssignment();
 
             $assignment = DriverAssignment::create([
                 'booking_id' => $booking->id,
@@ -154,6 +165,10 @@ class BookingService
                 'driver_id' => $driverId,
             ]);
 
+            // Confirming with this driver makes the ride the associate's when he
+            // owns the driver, and the admin's when he does not.
+            $booking->syncAssociateFromAssignment();
+
             if ($driverId) {
                 DriverAssignment::create([
                     'booking_id' => $booking->id,
@@ -184,6 +199,10 @@ class BookingService
 
     public function cancelBooking(Booking $booking)
     {
+        if ($booking->isLocked()) {
+            throw new \Exception($booking->lockedMessage());
+        }
+
         return DB::transaction(function () use ($booking) {
             $oldStatus = $booking->status;
 

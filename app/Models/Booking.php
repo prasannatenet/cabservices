@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\BookingStatus;
 use App\Enums\RejectionSource;
+use App\Models\Concerns\BelongsToAssociate;
+use App\Services\TripFareCalculator;
 use Database\Factories\BookingFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 class Booking extends Model
 {
     /** @use HasFactory<BookingFactory> */
-    use HasFactory;
+    use BelongsToAssociate, HasFactory;
 
     /**
      * The status label used when the assigned driver refused the ride. Both an
@@ -25,7 +27,7 @@ class Booking extends Model
         'booking_number',        'customer_name', 'customer_phone', 'customer_email', 'customer_whatsapp',
         'pickup_city_id', 'pickup_location', 'drop_city_id', 'drop_location',
         'pickup_date', 'pickup_time', 'drop_date', 'drop_time', 'passengers',
-        'service_type_id', 'vehicle_id', 'driver_id', 'vehicle_reference',
+        'service_type_id', 'associate_id', 'vehicle_id', 'driver_id', 'vehicle_reference',
         'status', 'rejection_reason', 'rejection_source', 'admin_notes',
         'start_odometer_km', 'start_odometer_photo', 'trip_started_at',
         'end_odometer_km', 'end_odometer_photo', 'trip_ended_at',
@@ -115,6 +117,79 @@ class Booking extends Model
     public function hasTripStarted(): bool
     {
         return $this->trip_started_at !== null;
+    }
+
+    /**
+     * Everything money-wise this one ride came to, in one place: what the
+     * customer is charged, what the driver earned for driving it, what he spent
+     * on it, and what is left over.
+     *
+     * The charge is the bill stored when the trip was closed, or the one the
+     * vehicle's current rate card comes to when the ride was never billed, so a
+     * figure can be given even for an older ride. Which of the two it is comes
+     * back as "charged", because an estimate must never be read as money taken.
+     *
+     * The leftover is only worked out when the driver's pay for the ride is
+     * actually known, which is the case for a driver paid per day. A driver on a
+     * fixed monthly salary has no per-ride cost to subtract, so guessing one
+     * would overstate what is left; there the figure is reported as null and
+     * the screen says so rather than inventing a profit.
+     *
+     * @return array{
+     *     charged: bool,
+     *     has_figure: bool,
+     *     total_amount: float,
+     *     driver_earnings: array{days: int, rate: float, total: float}|null,
+     *     driver_pay: float,
+     *     expenses: float,
+     *     leftover: float|null
+     * }
+     */
+    public function moneySummary(TripFareCalculator $calculator): array
+    {
+        $fare = $calculator->fareFor($this);
+        $earnings = $this->driver?->earningsFor($this);
+
+        $totalAmount = (float) ($fare['total_amount'] ?? 0.0);
+        $driverPay = (float) ($earnings['total'] ?? 0.0);
+        $expenses = $this->expenseTotal();
+
+        return [
+            'charged' => (bool) ($fare['billed'] ?? false),
+            'has_figure' => $fare !== null,
+            'total_amount' => $totalAmount,
+            'driver_earnings' => $earnings,
+            'driver_pay' => $driverPay,
+            'expenses' => $expenses,
+            'leftover' => $earnings === null
+                ? null
+                : round($totalAmount - $driverPay - $expenses, 2),
+        ];
+    }
+
+    /**
+     * A ride is only finished and therefore frozen.
+     *
+     * A completed trip is the record of what actually happened: the odometer
+     * readings, the bill worked out from them, the driver who drove it and the
+     * distance covered. Once it is closed, nobody may touch it any more, so the
+     * figures cannot be quietly rewritten after the fact. Every screen that
+     * edits a ride checks this before letting anything be saved.
+     *
+     * A rejected or cancelled ride is deliberately not locked: the admin reopens
+     * a refused ride by giving it another driver, so those have to stay editable.
+     */
+    public function isLocked(): bool
+    {
+        return $this->status === BookingStatus::TRIP_COMPLETED;
+    }
+
+    /**
+     * The message shown wherever a locked ride would otherwise be editable.
+     */
+    public function lockedMessage(): string
+    {
+        return 'This trip has ended on '.$this->displayStatus().' and can no longer be changed.';
     }
 
     /**
@@ -247,6 +322,34 @@ class Booking extends Model
     public function scopeInCities(Builder $query, array $cityIds): Builder
     {
         return $query->whereIn('pickup_city_id', $cityIds);
+    }
+
+    /**
+     * Work out which associate this ride belongs to from what the admin has
+     * assigned to it, and store the answer on the ride.
+     *
+     * A ride is only an associate's once one of his own resources is put on it:
+     * the driver if he has one, otherwise the vehicle. The city the ride starts
+     * in plays no part, so a Udaipur ride stays with the admin until the admin
+     * assigns the Udaipur associate's driver to it.
+     *
+     * Called whenever a driver or vehicle is assigned, and again when one is
+     * taken away, so a ride that loses its associate resource goes back to the
+     * admin rather than staying with the associate who no longer runs it.
+     */
+    public function syncAssociateFromAssignment(): self
+    {
+        // The relations are re-read rather than reused: they are commonly already
+        // loaded from before the swap, and a cached owner would keep the ride on
+        // the associate it just lost.
+        $this->unsetRelation('driver')->unsetRelation('vehicle');
+
+        $associateId = $this->driver?->associate_id ?? $this->vehicle?->associate_id;
+
+        $this->associate_id = $associateId;
+        $this->save();
+
+        return $this;
     }
 
     public function dropCity()

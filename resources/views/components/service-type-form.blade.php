@@ -6,6 +6,10 @@
     'cancelUrl',
     'submitLabel' => 'Save Service',
     'cityRequired' => false,
+    // Only the admin passes this. A service an associate creates is his by
+    // definition, so his own form has no owner to pick.
+    'associates' => null,
+    'adminOwner' => 'none',
 ])
 
 <form action="{{ $action }}" method="POST" enctype="multipart/form-data" class="space-y-6 max-w-2xl">
@@ -50,6 +54,20 @@
         </select>
         @error('city_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
     </div>
+
+    @if($associates !== null)
+        <div>
+            <label for="associate_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Associate (Owner)</label>
+            <select name="associate_id" id="associate_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="{{ $adminOwner }}" @selected(old('associate_id', $serviceType?->associate_id ?? $adminOwner) == $adminOwner)>Admin Created</option>
+                @foreach($associates as $associate)
+                    <option value="{{ $associate->id }}" @selected(old('associate_id', $serviceType?->associate_id) == $associate->id)>{{ $associate->name }}</option>
+                @endforeach
+            </select>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Whose service this is. The city it is listed under does not decide this.</p>
+            @error('associate_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+        </div>
+    @endif
 
     <div>
         <label for="image" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Image</label>

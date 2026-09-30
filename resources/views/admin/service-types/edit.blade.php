@@ -11,6 +11,7 @@
                 method="PUT"
                 :service-type="$serviceType"
                 :cities="$cities"
+                :associates="$associates"
                 :cancel-url="route('admin.service-types.index')"
                 submit-label="Update Service"
             />

@@ -15,7 +15,11 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * The associate manages every driver currently based in one of his cities.
+ * The associate's own drivers: every driver he created himself.
+ *
+ * Being based in one of his cities is not enough. A driver the admin created
+ * stays the admin's, and a driver the associate created stays his wherever the
+ * driver has since been relocated to.
  */
 class DriverController extends Controller
 {
@@ -24,8 +28,8 @@ class DriverController extends Controller
      */
     public function index(Request $request): View
     {
-        $drivers = Driver::with(['currentCity', 'user', 'creator'])
-            ->inCities($this->cityIds())
+        $drivers = Driver::with(['currentCity', 'user', 'creator', 'associate'])
+            ->ownedByAssociate(auth()->id())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -72,6 +76,9 @@ class DriverController extends Controller
         }
 
         $validated['created_by'] = auth()->id();
+        // A driver an associate creates is his own, so he is listed in his
+        // panel rather than the admin's.
+        $validated['associate_id'] = auth()->id();
 
         $driver = Driver::create($this->keepOnlyRelevantSalary($validated));
 
@@ -276,7 +283,10 @@ class DriverController extends Controller
     }
 
     /**
-     * Ids of the cities this associate manages.
+     * Ids of the cities this associate may create a record in.
+     *
+     * Ownership decides what he can see; his cities only decide where a new
+     * record may be based.
      *
      * @return list<int>
      */
@@ -296,14 +306,16 @@ class DriverController extends Controller
     }
 
     /**
-     * Stop the associate from touching a driver of a city he does not manage.
+     * Stop the associate from touching a driver who is not his. A driver the
+     * admin created, or one another associate created, is off limits even when
+     * he is currently based in one of this associate's cities.
      */
     private function authorizeDriver(Driver $driver): void
     {
         abort_unless(
-            auth()->user()->managesCity($driver->current_city_id),
+            $driver->isOwnedByAssociate(auth()->id()),
             403,
-            'This driver belongs to a city you do not manage.'
+            'This driver does not belong to you.'
         );
     }
 }

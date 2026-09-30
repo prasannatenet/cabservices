@@ -12,6 +12,7 @@
                 route-prefix="admin"
                 :cities="$cities"
                 :categories="$categories"
+                :associates="$associates"
                 :cancel-url="route('admin.vehicles.index')"
                 submit-label="Save Vehicle"
             />

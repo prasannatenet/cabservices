@@ -26,13 +26,15 @@
         </button>
     </div>
 
-    <!-- Managed cities -->
+    <!-- Cities he may add records in -->
     <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Managing {{ $managedCities->count() }} {{ $managedCities->count() === 1 ? 'city' : 'cities' }}</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            {{ $managedCities->count() === 0 ? 'No cities' : \Illuminate\Support\Str::plural('city', $managedCities->count()).' to add in' }}
+        </p>
         @forelse($managedCities as $managedCity)
             <p class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $managedCity->name }}</p>
         @empty
-            <p class="text-sm text-gray-500 dark:text-gray-400">No cities assigned yet.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Ask the admin to assign you a city.</p>
         @endforelse
     </div>
 

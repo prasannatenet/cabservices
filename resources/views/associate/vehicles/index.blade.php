@@ -6,7 +6,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden">
                 <div class="p-6 border-b border-gray-100 dark:border-gray-800/60 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Vehicles in My Cities</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">My Vehicles</h3>
                     <a href="{{ route('associate.vehicles.create') }}" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm shadow-primary-500/30">+ Add Vehicle</a>
                 </div>
                 <div class="p-6 pb-0">

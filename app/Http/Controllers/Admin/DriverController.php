@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\DriverStatus;
 use App\Enums\DriverType;
+use App\Http\Controllers\Concerns\FiltersByAssociate;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Driver;
@@ -14,12 +15,17 @@ use Illuminate\Validation\Rule;
 
 class DriverController extends Controller
 {
+    use FiltersByAssociate;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        $drivers = Driver::with(['currentCity', 'user', 'creator'])
+        $drivers = $this->applyAssociateFilter(
+            Driver::with(['currentCity', 'user', 'creator', 'associate']),
+            $request,
+        )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -38,14 +44,18 @@ class DriverController extends Controller
             'drivers' => $drivers,
             'cities' => City::orderBy('name')->get(),
             'statuses' => array_map(fn (DriverStatus $status) => $status->value, DriverStatus::cases()),
+            // Lets the admin narrow the list down to one associate's drivers, or
+            // to the ones he created himself.
+            ...$this->associateFilterOptions(),
         ]);
     }
 
     public function create()
     {
         $cities = City::all();
+        $associates = User::associateOptions();
 
-        return view('admin.drivers.create', compact('cities'));
+        return view('admin.drivers.create', compact('cities', 'associates'));
     }
 
     /**
@@ -84,6 +94,8 @@ class DriverController extends Controller
             // Driver login account (dashboard access)
             'login_id' => 'nullable|alpha_dash|min:3|max:255|unique:users,username',
             'login_password' => 'nullable|string|min:8|required_with:login_id',
+            // Who owns the driver: an existing associate, or the admin himself.
+            'associate_id' => $this->associateOwnerRules(),
         ]);
 
         if ($request->hasFile('profile_photo')) {
@@ -96,6 +108,11 @@ class DriverController extends Controller
             $validated['aadhaar_photo'] = $request->file('aadhaar_photo')->store('drivers/aadhaar', 'public');
         }
 
+        // A driver the admin creates is the admin's own unless he hands him to an
+        // associate, in which case that associate manages him from then on.
+        $validated['created_by'] = auth()->id();
+        $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
+
         $driver = Driver::create($this->keepOnlyRelevantSalary($validated));
 
         $this->saveLoginAccount($driver, $validated);
@@ -105,7 +122,7 @@ class DriverController extends Controller
 
     public function show(Driver $driver)
     {
-        $driver->load(['currentCity', 'leaves', 'user', 'preferredCities']);
+        $driver->load(['currentCity', 'leaves', 'user', 'preferredCities', 'associate', 'creator']);
 
         return view('admin.drivers.show', compact('driver'));
     }
@@ -113,8 +130,9 @@ class DriverController extends Controller
     public function edit(Driver $driver)
     {
         $cities = City::all();
+        $associates = User::associateOptions();
 
-        return view('admin.drivers.edit', compact('driver', 'cities'));
+        return view('admin.drivers.edit', compact('driver', 'cities', 'associates'));
     }
 
     public function update(Request $request, Driver $driver)
@@ -156,6 +174,8 @@ class DriverController extends Controller
                 Rule::unique('users', 'username')->ignore($driver->user?->id),
             ],
             'login_password' => 'nullable|string|min:8',
+            // Who owns the driver: an existing associate, or the admin himself.
+            'associate_id' => $this->associateOwnerRules(),
         ]);
 
         if ($request->hasFile('profile_photo')) {
@@ -177,7 +197,21 @@ class DriverController extends Controller
             $validated['aadhaar_photo'] = $request->file('aadhaar_photo')->store('drivers/aadhaar', 'public');
         }
 
+        // Ownership is only touched when the form actually sent the field, so a
+        // form that does not show it cannot silently take a driver back from the
+        // associate who owns him.
+        if ($request->has('associate_id')) {
+            $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
+        } else {
+            unset($validated['associate_id']);
+        }
+
         $driver->update($this->keepOnlyRelevantSalary($validated));
+
+        // Rides already running on this driver follow him to his new owner, so
+        // the associate who loses him does not keep dispatching his rides.
+        $driver->bookings()->where('associate_id', '!=', $driver->associate_id)->get()
+            ->each->syncAssociateFromAssignment();
 
         $this->saveLoginAccount($driver, $validated);
 

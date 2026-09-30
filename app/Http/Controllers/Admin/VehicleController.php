@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Concerns\FiltersByAssociate;
 use App\Http\Controllers\Controller;
 use App\Models\City;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use App\Models\VehicleImage;
@@ -14,9 +16,14 @@ use Illuminate\Support\Facades\Storage;
 
 class VehicleController extends Controller
 {
+    use FiltersByAssociate;
+
     public function index(Request $request)
     {
-        $vehicles = Vehicle::with(['city', 'category', 'creator'])
+        $vehicles = $this->applyAssociateFilter(
+            Vehicle::with(['city', 'category', 'creator', 'associate']),
+            $request,
+        )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -37,6 +44,9 @@ class VehicleController extends Controller
             'cities' => City::orderBy('name')->get(),
             'categories' => VehicleCategory::orderBy('name')->get(),
             'statuses' => ['Available', 'On Trip', 'Maintenance', 'Inactive'],
+            // Lets the admin narrow the fleet down to one associate's vehicles,
+            // or to the ones he created himself.
+            ...$this->associateFilterOptions(),
         ]);
     }
 
@@ -44,8 +54,9 @@ class VehicleController extends Controller
     {
         $cities = City::all();
         $categories = VehicleCategory::all();
+        $associates = User::associateOptions();
 
-        return view('admin.vehicles.create', compact('cities', 'categories'));
+        return view('admin.vehicles.create', compact('cities', 'categories', 'associates'));
     }
 
     public function store(Request $request)
@@ -56,6 +67,9 @@ class VehicleController extends Controller
         $validated['rc_photo'] = $this->storeDocumentPhotos($request, 'rc_photos');
         $validated = Arr::except($validated, ['insurance_photos', 'rc_photos']);
         $validated['created_by'] = auth()->id();
+        // A vehicle the admin creates is the admin's own unless he hands it to an
+        // associate, in which case that associate manages it from then on.
+        $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
 
         $vehicle = Vehicle::create($validated);
 
@@ -73,14 +87,15 @@ class VehicleController extends Controller
     {
         $cities = City::all();
         $categories = VehicleCategory::all();
+        $associates = User::associateOptions();
         $vehicle->load('images');
 
-        return view('admin.vehicles.edit', compact('vehicle', 'cities', 'categories'));
+        return view('admin.vehicles.edit', compact('vehicle', 'cities', 'categories', 'associates'));
     }
 
     public function show(Vehicle $vehicle)
     {
-        $vehicle->load(['city', 'operatingCity', 'category', 'images']);
+        $vehicle->load(['city', 'operatingCity', 'category', 'images', 'associate', 'creator']);
 
         return view('admin.vehicles.show', compact('vehicle'));
     }
@@ -100,6 +115,15 @@ class VehicleController extends Controller
             $this->storeDocumentPhotos($request, 'rc_photos'),
         );
         $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'remove_insurance', 'remove_rc']);
+
+        // Ownership is only touched when the form actually sent the field, so a
+        // form that does not show it cannot silently take a vehicle back from
+        // the associate who owns it.
+        if ($request->has('associate_id')) {
+            $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
+        } else {
+            unset($validated['associate_id']);
+        }
 
         $vehicle->update($validated);
 
@@ -167,6 +191,8 @@ class VehicleController extends Controller
             'remove_rc.*' => 'string',
             'images' => 'nullable|array',
             'images.*' => 'image|max:2048',
+            // Who owns the vehicle: an existing associate, or the admin himself.
+            'associate_id' => $this->associateOwnerRules(),
             'status' => 'required|string',
         ]);
     }

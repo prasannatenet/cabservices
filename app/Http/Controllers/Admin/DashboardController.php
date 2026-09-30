@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Driver;
 use App\Models\DriverAssignment;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\TripFareCalculator;
 
@@ -45,7 +46,7 @@ class DashboardController extends Controller
             'total_trip_km' => (int) $completed->distance,
         ];
 
-        $recentBookings = Booking::with(['pickupCity', 'dropCity'])
+        $recentBookings = Booking::with(['pickupCity', 'dropCity', 'associate'])
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get();
@@ -58,6 +59,41 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        return view('dashboard', compact('metrics', 'recentBookings', 'recentRejections'));
+        return view('dashboard', [
+            'metrics' => $metrics,
+            'recentBookings' => $recentBookings,
+            'recentRejections' => $recentRejections,
+            'associateStats' => $this->associateStats(),
+            // The admin's own totals, so his share is listed next to each
+            // associate's rather than only implied by the absence of a name.
+            'adminTotals' => [
+                'vehicles' => Vehicle::ownedByAssociate(null)->count(),
+                'drivers' => Driver::ownedByAssociate(null)->count(),
+                'bookings' => Booking::ownedByAssociate(null)->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * What each associate owns, so the admin can see at a glance whose fleet,
+     * drivers and rides are whose, and how much of the work is being run by an
+     * associate rather than by the admin himself.
+     *
+     * @return list<array{id: int, name: string, vehicles: int, drivers: int, bookings: int}>
+     */
+    private function associateStats(): array
+    {
+        return User::query()
+            ->associates()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $associate): array => [
+                'id' => $associate->id,
+                'name' => $associate->name,
+                'vehicles' => Vehicle::ownedByAssociate($associate->id)->count(),
+                'drivers' => Driver::ownedByAssociate($associate->id)->count(),
+                'bookings' => Booking::ownedByAssociate($associate->id)->count(),
+            ])
+            ->all();
     }
 }

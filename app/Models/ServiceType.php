@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToAssociate;
 use Database\Factories\ServiceTypeFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,9 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ServiceType extends Model
 {
     /** @use HasFactory<ServiceTypeFactory> */
-    use HasFactory;
+    use BelongsToAssociate, HasFactory;
 
-    protected $fillable = ['city_id', 'created_by', 'name', 'description', 'image', 'status', 'is_approved', 'display_order'];
+    protected $fillable = ['city_id', 'created_by', 'associate_id', 'name', 'description', 'image', 'status', 'is_approved', 'display_order'];
 
     /**
      * Restrict the query to services visible to customers: status Active and approved by admin.
@@ -32,7 +33,9 @@ class ServiceType extends Model
     }
 
     /**
-     * The admin or associate who created the service.
+     * The admin or associate who created the service. Distinct from
+     * "associate": a service an admin added can still be handed to an
+     * associate, in which case the admin stays the creator.
      */
     public function creator(): BelongsTo
     {

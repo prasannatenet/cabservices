@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\AssignmentResponseStatus;
 use App\Enums\DriverStatus;
 use App\Enums\DriverType;
+use App\Models\Concerns\BelongsToAssociate;
 use App\Services\TripFareCalculator;
 use Database\Factories\DriverFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,12 +17,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Driver extends Model
 {
     /** @use HasFactory<DriverFactory> */
-    use HasFactory;
+    use BelongsToAssociate, HasFactory;
 
     use SoftDeletes;
 
     protected $fillable = [
         'name', 'phone', 'whatsapp', 'alternate_phone', 'email', 'address', 'user_id', 'created_by',
+        'associate_id',
         'license_number', 'license_expiry', 'license_document', 'experience_years', 'profile_photo',
         'aadhaar_number', 'aadhaar_photo', 'permanent_address', 'current_address',
         'current_city_id', 'status',
@@ -83,7 +85,9 @@ class Driver extends Model
     }
 
     /**
-     * The admin or associate who added the driver.
+     * The admin or associate who added the driver. Distinct from "associate":
+     * a driver an admin added can still be handed to an associate, in which case
+     * the admin stays the creator and the associate becomes the owner.
      */
     public function creator(): BelongsTo
     {

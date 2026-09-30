@@ -10,6 +10,7 @@
             <x-driver-form
                 :action="route('admin.drivers.store')"
                 :cities="$cities"
+                :associates="$associates"
                 :cancel-url="route('admin.drivers.index')"
                 submit-label="Save Driver"
             />

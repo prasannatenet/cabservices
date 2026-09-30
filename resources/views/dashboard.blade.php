@@ -167,6 +167,7 @@
                             <th scope="col" class="text-left">Customer</th>
                             <th scope="col" class="text-left">Route</th>
                             <th scope="col" class="text-left">Pickup</th>
+                            <th scope="col" class="text-left">Handled By</th>
                             <th scope="col" class="text-left">Status</th>
                         </tr>
                     </thead>
@@ -192,6 +193,9 @@
                                 <div class="text-xs text-gray-500 mt-0.5">{{ $booking->pickup_time }}</div>
                             </td>
                             <td class="whitespace-nowrap">
+                                <x-associate-badge :record="$booking" />
+                            </td>
+                            <td class="whitespace-nowrap">
                                 <span class="px-2.5 py-0.5 inline-flex text-xs leading-5 font-bold rounded-full border
                                     @if($booking->status === \App\Enums\BookingStatus::TRIP_COMPLETED) bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/50
                                     @elseif($booking->isRejectedByDriver()) bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-900/50
@@ -203,12 +207,64 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="5" class="admin-table-empty">No bookings found.</td>
+                            <td colspan="6" class="admin-table-empty">No bookings found.</td>
                         </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
+
+        {{-- Whose work is whose: a ride only reaches an associate once the admin
+             assigns one of his drivers or vehicles to it, so this is the quickest
+             way to see how much each of them is actually running. --}}
+        @if(count($associateStats))
+            <div class="admin-card">
+                <div class="admin-card-header">
+                    <h3 class="text-base font-bold text-gray-900 dark:text-white font-display">Associate Breakdown</h3>
+                    <a href="{{ route('admin.associates.index') }}" class="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 transition-colors whitespace-nowrap">Manage Associates &rarr;</a>
+                </div>
+                <div class="admin-table-scroll">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="text-left">Associate</th>
+                                <th scope="col" class="text-left">Vehicles</th>
+                                <th scope="col" class="text-left">Drivers</th>
+                                <th scope="col" class="text-right">Rides Assigned</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60">
+                            @foreach($associateStats as $stat)
+                            <tr>
+                                <td class="whitespace-nowrap font-semibold text-gray-900 dark:text-white">{{ $stat['name'] }}</td>
+                                <td class="whitespace-nowrap">
+                                    <a href="{{ route('admin.vehicles.index', ['associate' => $stat['id']]) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">{{ $stat['vehicles'] }}</a>
+                                </td>
+                                <td class="whitespace-nowrap">
+                                    <a href="{{ route('admin.drivers.index', ['associate' => $stat['id']]) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">{{ $stat['drivers'] }}</a>
+                                </td>
+                                <td class="whitespace-nowrap text-right">
+                                    <a href="{{ route('admin.bookings.index', ['associate' => $stat['id']]) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">{{ $stat['bookings'] }}</a>
+                                </td>
+                            </tr>
+                            @endforeach
+                            <tr class="bg-gray-50 dark:bg-gray-800/40">
+                                <td class="whitespace-nowrap font-semibold text-gray-900 dark:text-white">Admin Created</td>
+                                <td class="whitespace-nowrap">
+                                    <a href="{{ route('admin.vehicles.index', ['associate' => 'none']) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">{{ $adminTotals['vehicles'] }}</a>
+                                </td>
+                                <td class="whitespace-nowrap">
+                                    <a href="{{ route('admin.drivers.index', ['associate' => 'none']) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">{{ $adminTotals['drivers'] }}</a>
+                                </td>
+                                <td class="whitespace-nowrap text-right">
+                                    <a href="{{ route('admin.bookings.index', ['associate' => 'none']) }}" class="text-primary-600 hover:text-primary-500 dark:text-primary-400">{{ $adminTotals['bookings'] }}</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
     </div>
 </x-app-layout>

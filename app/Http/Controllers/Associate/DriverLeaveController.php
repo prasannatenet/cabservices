@@ -57,14 +57,14 @@ class DriverLeaveController extends Controller
     }
 
     /**
-     * Stop the associate from managing leave of a driver he does not manage.
+     * Stop the associate from managing the leave of a driver who is not his.
      */
     private function authorizeDriver(Driver $driver): void
     {
         abort_unless(
-            auth()->user()->managesCity($driver->current_city_id),
+            $driver->isOwnedByAssociate(auth()->id()),
             403,
-            'This driver belongs to a city you do not manage.'
+            'This driver does not belong to you.'
         );
     }
 }

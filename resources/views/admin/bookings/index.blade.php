@@ -37,6 +37,16 @@
                         </select>
                     </div>
                     <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Handled By</label>
+                        <select name="associate" class="block w-44 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                            <option value="">All</option>
+                            <option value="{{ $adminOwner }}" @selected(request('associate') === $adminOwner)>Admin Created</option>
+                            @foreach($associates as $associate)
+                                <option value="{{ $associate->id }}" @selected(request('associate') == $associate->id)>{{ $associate->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Pickup From</label>
                         <input type="date" name="date_from" value="{{ request('date_from') }}" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     </div>
@@ -54,6 +64,7 @@
                             <th scope="col" class="text-left">Booking ID</th>
                             <th scope="col" class="text-left">Customer</th>
                             <th scope="col" class="text-left">Route & Time</th>
+                            <th scope="col" class="text-left">Handled By</th>
                             <th scope="col" class="text-left">Status</th>
                             <th scope="col" class="text-right">Actions</th>
                         </tr>
@@ -75,6 +86,9 @@
                                     <span class="font-medium">{{ optional($booking->dropCity)->name }}</span>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1">{{ \Carbon\Carbon::parse($booking->pickup_date)->format('d M, Y') }} at {{ $booking->pickup_time }}</div>
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <x-associate-badge :record="$booking" />
                             </td>
                             <td class="whitespace-nowrap">
                                 <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border 
@@ -100,7 +114,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="5" class="admin-table-empty">No bookings found.</td>
+                            <td colspan="6" class="admin-table-empty">No bookings found.</td>
                         </tr>
                         @endforelse
                     </tbody>

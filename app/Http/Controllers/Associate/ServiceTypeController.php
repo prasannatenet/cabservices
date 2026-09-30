@@ -15,11 +15,12 @@ use Illuminate\View\View;
 class ServiceTypeController extends Controller
 {
     /**
-     * List the services that belong to the cities this associate manages.
+     * List the services this associate created himself.
      */
     public function index(Request $request): View
     {
         $services = ServiceType::inCities($this->cityIds())
+            ->ownedByAssociate(Auth::id())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -57,6 +58,9 @@ class ServiceTypeController extends Controller
         }
 
         $validated['created_by'] = Auth::id();
+        // A service an associate creates is his own, so it is listed in his
+        // panel rather than the admin's.
+        $validated['associate_id'] = Auth::id();
         // Associate-created services must be approved by the admin before going live.
         $validated['is_approved'] = false;
 
@@ -127,7 +131,10 @@ class ServiceTypeController extends Controller
     }
 
     /**
-     * Ids of the cities this associate manages.
+     * Ids of the cities this associate may create a service in.
+     *
+     * Ownership decides what he can see; his cities only decide where a new
+     * service may be based.
      *
      * @return list<int>
      */
@@ -145,14 +152,16 @@ class ServiceTypeController extends Controller
     }
 
     /**
-     * Stop the associate from touching a service of a city he does not manage.
+     * Stop the associate from touching a service that is not his. A service the
+     * admin created, or one another associate created, is off limits even when
+     * it sits in one of this associate's cities.
      */
     private function authorizeService(ServiceType $serviceType): void
     {
         abort_unless(
-            Auth::user()->managesCity($serviceType->city_id),
+            $serviceType->isOwnedByAssociate(Auth::id()),
             403,
-            'This service belongs to a city you do not manage.'
+            'This service does not belong to you.'
         );
     }
 }

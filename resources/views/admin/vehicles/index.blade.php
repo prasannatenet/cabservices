@@ -39,6 +39,16 @@
                         </select>
                     </div>
                     <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Associate</label>
+                        <select name="associate" class="block w-44 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                            <option value="">All</option>
+                            <option value="{{ $adminOwner }}" @selected(request('associate') === $adminOwner)>Admin Created</option>
+                            @foreach($associates as $associate)
+                                <option value="{{ $associate->id }}" @selected(request('associate') == $associate->id)>{{ $associate->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
                         <select name="category_id" class="block w-40 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500">
                             <option value="">All</option>
@@ -59,6 +69,7 @@
                             <th scope="col" class="text-left">Category</th>
                             <th scope="col" class="text-left">Registration Number</th>
                             <th scope="col" class="text-left">City</th>
+                            <th scope="col" class="text-left">Associate</th>
                             <th scope="col" class="text-left">Status</th>
                             <th scope="col" class="text-left">Documents</th>
                             <th scope="col" class="text-right">Actions</th>
@@ -82,6 +93,9 @@
                             </td>
                             <td class="whitespace-nowrap">
                                 {{ optional($vehicle->city)->name ?? 'N/A' }}
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <x-associate-badge :record="$vehicle" />
                             </td>
                             <td class="whitespace-nowrap">
                                 <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border 
@@ -119,7 +133,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="admin-table-empty">No vehicles found.</td>
+                            <td colspan="8" class="admin-table-empty">No vehicles found.</td>
                         </tr>
                         @endforelse
                     </tbody>

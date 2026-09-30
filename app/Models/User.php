@@ -6,6 +6,8 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -52,8 +54,10 @@ class User extends Authenticatable
     }
 
     /**
-     * An associate is the admin of the cities assigned to him. He manages the
-     * fleet, drivers, services and bookings of those cities only.
+     * An associate is a sub-admin for a set of cities, but what he actually runs
+     * is decided by ownership rather than by geography: the fleet, drivers and
+     * services he created are his, and the rides the admin assigned to him by
+     * putting one of those on them are his too.
      */
     public function isAssociate(): bool
     {
@@ -65,13 +69,33 @@ class User extends Authenticatable
         return $this->role === self::ROLE_DRIVER;
     }
 
+    /**
+     * Restrict the query to the associate accounts.
+     */
+    public function scopeAssociates(Builder $query): Builder
+    {
+        return $query->where('role', self::ROLE_ASSOCIATE);
+    }
+
+    /**
+     * Every associate, for the dropdowns that let the admin hand a record to one.
+     *
+     * @return Collection<int, User>
+     */
+    public static function associateOptions(): Collection
+    {
+        return self::query()->associates()->orderBy('name')->get();
+    }
+
     public function isActive(): bool
     {
         return $this->status === self::STATUS_ACTIVE;
     }
 
     /**
-     * The cities an associate manages.
+     * The cities an associate may create records in. His cities decide where a
+     * new record may be based, never who owns it: ownership follows whoever
+     * created the record.
      */
     public function assignedCities(): BelongsToMany
     {
@@ -92,18 +116,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Whether this associate manages the given city.
-     */
-    public function managesCity(?int $cityId): bool
-    {
-        if ($cityId === null) {
-            return false;
-        }
-
-        return in_array($cityId, $this->assignedCityIds(), true);
-    }
-
-    /**
      * The dashboard of the panel this user belongs to.
      */
     public function homeRouteName(): string
@@ -119,8 +131,10 @@ class User extends Authenticatable
      * Whether this user dispatches rides for the given booking, i.e. he is
      * responsible for the ride and must be told how the driver answered it.
      *
-     * An admin dispatches every ride. An associate only dispatches the rides
-     * that start in one of the cities he manages, and a driver never does.
+     * An admin dispatches every ride. An associate only dispatches the rides the
+     * admin handed to him by putting one of his own drivers or vehicles on
+     * them: a ride that merely starts in one of his cities is not his, so he
+     * is not told about it and cannot open it.
      */
     public function dispatchesBooking(Booking $booking): bool
     {
@@ -132,6 +146,6 @@ class User extends Authenticatable
             return true;
         }
 
-        return $this->isAssociate() && $this->managesCity($booking->pickup_city_id);
+        return $this->isAssociate() && $booking->isOwnedByAssociate($this->id);
     }
 }

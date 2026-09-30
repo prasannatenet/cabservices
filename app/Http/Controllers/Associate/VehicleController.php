@@ -16,15 +16,18 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * The associate is the admin of the cities assigned to him: he manages every
- * vehicle currently based in those cities, and nothing outside them.
+ * The associate's own fleet: every vehicle he created himself.
+ *
+ * The city a vehicle is parked in does not make it his. A vehicle the admin
+ * created and based in one of the associate's cities stays the admin's, and a
+ * vehicle the associate created stays his wherever it has since been moved.
  */
 class VehicleController extends Controller
 {
     public function index(Request $request): View
     {
-        $vehicles = Vehicle::with(['city', 'category'])
-            ->inCities($this->cityIds())
+        $vehicles = Vehicle::with(['city', 'category', 'associate'])
+            ->ownedByAssociate(auth()->id())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -64,6 +67,9 @@ class VehicleController extends Controller
         $validated['rc_photo'] = $this->storeDocumentPhotos($request, 'rc_photos');
         $validated = Arr::except($validated, ['insurance_photos', 'rc_photos']);
         $validated['created_by'] = auth()->id();
+        // A vehicle an associate creates is his own, so it is listed in his
+        // panel rather than the admin's.
+        $validated['associate_id'] = auth()->id();
 
         $vehicle = Vehicle::create($validated);
 
@@ -233,7 +239,10 @@ class VehicleController extends Controller
     }
 
     /**
-     * Ids of the cities this associate manages.
+     * Ids of the cities this associate may create a record in.
+     *
+     * Ownership decides what he can see; his cities only decide where a new
+     * record may be based.
      *
      * @return list<int>
      */
@@ -253,14 +262,16 @@ class VehicleController extends Controller
     }
 
     /**
-     * Stop the associate from touching a vehicle of a city he does not manage.
+     * Stop the associate from touching a vehicle that is not his. A vehicle the
+     * admin created, or one another associate created, is off limits even when
+     * it is parked in one of his cities.
      */
     private function authorizeVehicle(?Vehicle $vehicle): void
     {
         abort_unless(
-            $vehicle instanceof Vehicle && auth()->user()->managesCity($vehicle->city_id),
+            $vehicle instanceof Vehicle && $vehicle->isOwnedByAssociate(auth()->id()),
             403,
-            'This vehicle belongs to a city you do not manage.'
+            'This vehicle does not belong to you.'
         );
     }
 }

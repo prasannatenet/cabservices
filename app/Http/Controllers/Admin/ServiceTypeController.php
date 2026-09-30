@@ -2,18 +2,25 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Concerns\FiltersByAssociate;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\ServiceType;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class ServiceTypeController extends Controller
 {
+    use FiltersByAssociate;
+
     public function index(Request $request)
     {
-        $services = ServiceType::with(['city', 'creator'])
+        $services = $this->applyAssociateFilter(
+            ServiceType::with(['city', 'creator', 'associate']),
+            $request,
+        )
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -32,6 +39,9 @@ class ServiceTypeController extends Controller
         return view('admin.service-types.index', [
             'services' => $services,
             'cities' => City::orderBy('name')->get(),
+            // Lets the admin narrow the list down to one associate's services, or
+            // to the ones he created himself.
+            ...$this->associateFilterOptions(),
         ]);
     }
 
@@ -39,6 +49,7 @@ class ServiceTypeController extends Controller
     {
         return view('admin.service-types.create', [
             'cities' => City::orderBy('name')->get(),
+            'associates' => User::associateOptions(),
         ]);
     }
 
@@ -53,6 +64,8 @@ class ServiceTypeController extends Controller
             // A service of one of the admin's cities is visible only in that city; a
             // service without a city stays global and admin-only.
             'city_id' => 'nullable|exists:cities,id',
+            // Who owns the service: an existing associate, or the admin himself.
+            'associate_id' => $this->associateOwnerRules(),
         ]);
 
         if ($request->hasFile('image')) {
@@ -60,6 +73,9 @@ class ServiceTypeController extends Controller
         }
 
         $validated['created_by'] = Auth::id();
+        // An admin-created service is the admin's own unless he hands it to an
+        // associate, in which case that associate manages it from then on.
+        $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
         // Admin-created services are approved by default.
         $validated['is_approved'] = true;
 
@@ -73,6 +89,7 @@ class ServiceTypeController extends Controller
         return view('admin.service-types.edit', [
             'serviceType' => $serviceType,
             'cities' => City::orderBy('name')->get(),
+            'associates' => User::associateOptions(),
         ]);
     }
 
@@ -86,6 +103,8 @@ class ServiceTypeController extends Controller
             'status' => 'required|in:Active,Inactive',
             'city_id' => 'nullable|exists:cities,id',
             'is_approved' => 'sometimes|boolean',
+            // Who owns the service: an existing associate, or the admin himself.
+            'associate_id' => $this->associateOwnerRules(),
         ]);
 
         if ($request->hasFile('image')) {
@@ -93,6 +112,14 @@ class ServiceTypeController extends Controller
                 Storage::disk('public')->delete($serviceType->image);
             }
             $validated['image'] = $request->file('image')->store('service-types', 'public');
+        }
+
+        // Ownership is only touched when the form actually sent the field, so a
+        // form that does not show it cannot silently take a service back.
+        if ($request->has('associate_id')) {
+            $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
+        } else {
+            unset($validated['associate_id']);
         }
 
         $serviceType->update($validated);

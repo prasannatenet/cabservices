@@ -91,8 +91,12 @@ class AssignmentNotificationService
 
     /**
      * Everyone who dispatches this ride: the active admins plus the active
-     * associates managing the pickup city. Deactivated accounts are skipped
+     * associate the admin handed the ride to. Deactivated accounts are skipped
      * because they cannot log in to receive anything.
+     *
+     * A ride that starts in a city some associate manages is not his unless the
+     * admin put one of his drivers or vehicles on it, so an associate who does
+     * not own this ride is left out even when he manages the pickup city.
      *
      * @return Collection<int, User>
      */
@@ -101,14 +105,11 @@ class AssignmentNotificationService
         return User::query()
             ->where('status', User::STATUS_ACTIVE)
             ->where(function (Builder $query) use ($booking): void {
-                $query->where('role', User::ROLE_ADMIN)
-                    ->orWhere(function (Builder $query) use ($booking): void {
-                        $query->where('role', User::ROLE_ASSOCIATE)
-                            ->whereHas(
-                                'assignedCities',
-                                fn (Builder $city) => $city->where('cities.id', $booking->pickup_city_id)
-                            );
-                    });
+                $query->where('role', User::ROLE_ADMIN);
+
+                if ($booking->associate_id !== null) {
+                    $query->orWhere('id', $booking->associate_id);
+                }
             })
             ->get();
     }

@@ -11,34 +11,55 @@ use App\Models\ServiceType;
 use App\Models\Vehicle;
 use Illuminate\View\View;
 
+/**
+ * The associate's dashboard counts only what he owns: the rides the admin
+ * assigned to him and the fleet, drivers and services he created himself.
+ */
 class DashboardController extends Controller
 {
     /**
-     * Show the associate dashboard. Every metric covers the cities he manages only.
+     * Show the associate dashboard. Every metric covers his own records only.
      */
     public function index(): View
     {
         $user = auth()->user();
-        $cityIds = $user->assignedCityIds();
+        $associateId = $user->id;
 
         $metrics = [
-            'total_bookings' => Booking::inCities($cityIds)->count(),
-            'pending_bookings' => Booking::inCities($cityIds)->where('status', BookingStatus::PENDING->value)->count(),
-            'active_vehicles' => Vehicle::inCities($cityIds)->where('status', VehicleStatus::AVAILABLE->value)->count(),
-            'available_drivers' => Driver::inCities($cityIds)->where('status', 'Available')->count(),
-            'services' => ServiceType::inCities($cityIds)->count(),
+            'total_bookings' => Booking::ownedByAssociate($associateId)->count(),
+            'pending_bookings' => Booking::ownedByAssociate($associateId)->where('status', BookingStatus::PENDING->value)->count(),
+            'ongoing_bookings' => Booking::ownedByAssociate($associateId)->ongoing()->count(),
+            'active_vehicles' => Vehicle::ownedByAssociate($associateId)->where('status', VehicleStatus::AVAILABLE->value)->count(),
+            'available_drivers' => Driver::ownedByAssociate($associateId)->where('status', 'Available')->count(),
+            'services' => ServiceType::ownedByAssociate($associateId)->count(),
         ];
 
-        $recentBookings = Booking::inCities($cityIds)
+        $recentBookings = Booking::ownedByAssociate($associateId)
             ->with(['pickupCity', 'dropCity'])
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get();
 
+        $cities = $user->assignedCities()->orderBy('name')->get();
+
         return view('associate.dashboard', [
             'metrics' => $metrics,
             'recentBookings' => $recentBookings,
-            'cities' => $user->assignedCities()->orderBy('name')->get(),
+            'cities' => $cities,
+            // How much the associate owns in total, as opposed to how much of it
+            // happens to be free right now. The two numbers answer different
+            // questions and the banner shows both.
+            'owned' => [
+                'vehicles' => Vehicle::ownedByAssociate($associateId)->count(),
+                'drivers' => Driver::ownedByAssociate($associateId)->count(),
+                'services' => ServiceType::ownedByAssociate($associateId)->count(),
+            ],
+            // Nothing at all to show, not even an empty-state hint that the
+            // associate has work waiting for him.
+            'hasAnything' => $metrics['total_bookings'] > 0
+                || $metrics['active_vehicles'] > 0
+                || $metrics['available_drivers'] > 0
+                || $metrics['services'] > 0,
         ]);
     }
 }

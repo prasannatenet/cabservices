@@ -11,6 +11,7 @@
                 method="PUT"
                 :driver="$driver"
                 :cities="$cities"
+                :associates="$associates"
                 :cancel-url="route('admin.drivers.index')"
                 submit-label="Update Driver"
             />

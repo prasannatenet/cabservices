@@ -10,8 +10,8 @@
 
             <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 overflow-hidden">
                 <div class="p-6 border-b border-gray-100 dark:border-gray-800/60">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Bookings Starting in My Cities</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">A booking appears here as soon as a customer books a pickup in one of your cities.</p>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Rides Assigned To Me</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">A ride appears here once the admin assigns one of your own drivers or vehicles to it. A ride merely starting in one of your cities stays with the admin.</p>
                 </div>
 
                 <div class="p-6 pb-0">
@@ -94,7 +94,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No bookings found for your cities.</td>
+                                <td colspan="5" class="px-6 py-8 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center font-medium">No rides have been assigned to you yet.</td>
                             </tr>
                             @endforelse
                         </tbody>

@@ -18,16 +18,19 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * Bookings are handled by the associate for the cities he manages: he sees a
- * booking as soon as a customer books a pickup in one of his cities, and can
- * confirm, assign and complete it exactly like the admin.
+ * Rides are handled by the associate the admin handed them to.
+ *
+ * A customer booking a pickup in one of his cities does not make the ride his:
+ * it stays with the admin until the admin assigns one of the associate's own
+ * drivers or vehicles to it. From that moment the ride appears in this panel and
+ * the associate can confirm, reassign and complete it exactly like the admin.
  */
 class BookingController extends Controller
 {
     public function index(Request $request): View
     {
         $bookings = Booking::with(['pickupCity', 'dropCity'])
-            ->inCities($this->cityIds())
+            ->ownedByAssociate(auth()->id())
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->query('search');
                 $query->where(function ($q) use ($search) {
@@ -57,21 +60,28 @@ class BookingController extends Controller
 
         $booking->load(['pickupCity', 'dropCity', 'vehicle', 'serviceType', 'driverAssignment.driver']);
 
-        // Only list drivers willing to go to this booking's drop city.
+        $associateId = auth()->id();
+
+        // Only this associate's own drivers and vehicles may be put on one of his
+        // rides, so the dropdowns offer his resources rather than everyone in
+        // the pickup city.
         $availableDrivers = Driver::with(['currentCity', 'preferredCities'])
-            ->inCities($this->cityIds())
+            ->ownedByAssociate($associateId)
             ->where('status', 'Available')
             ->willingToGoTo($booking->drop_city_id)
             ->orderBy('name')
             ->get()
-            ->merge(
-                $booking->driver_id
-                    ? Driver::with(['currentCity', 'preferredCities'])->whereKey($booking->driver_id)->get()
-                    : collect()
-            )
+            // The driver already on the ride is carried over so that editing the
+            // ride cannot silently drop him, but only when he really is this
+            // associate's: the admin's own driver must never appear here.
+            ->merge($this->assignedDriverWhenItIsMine($booking, $associateId))
             ->unique('id')
             ->values();
-        $availableVehicles = Vehicle::inCities($this->cityIds())->with(['images', 'category', 'city'])->where('status', 'Available')->get();
+
+        $availableVehicles = Vehicle::ownedByAssociate($associateId)
+            ->with(['images', 'category', 'city'])
+            ->where('status', 'Available')
+            ->get();
 
         return view('associate.bookings.show', compact('booking', 'availableDrivers', 'availableVehicles'));
     }
@@ -80,13 +90,27 @@ class BookingController extends Controller
     {
         $this->authorizeBooking($booking);
 
-        $cityIds = $this->cityIds();
+        // Once the trip has ended it is frozen for everyone, the associate
+        // included: the ride, its driver and its fare are the record of what
+        // actually happened.
+        if ($booking->isLocked()) {
+            return back()->with('error', $booking->lockedMessage());
+        }
+
+        $associateId = auth()->id();
 
         $validated = $request->validate([
             'status' => ['required', Rule::enum(BookingStatus::class)],
-            // Only drivers and vehicles of the associate's own cities may be assigned.
-            'driver_id' => ['nullable', Rule::exists('drivers', 'id')->whereIn('current_city_id', $cityIds)],
-            'vehicle_id' => ['nullable', Rule::exists('vehicles', 'id')->whereIn('city_id', $cityIds)],
+            // Only this associate's own drivers and vehicles may be assigned, so
+            // a ride can never be pushed onto someone else's resource.
+            'driver_id' => [
+                'nullable',
+                Rule::exists('drivers', 'id')->where('associate_id', $associateId),
+            ],
+            'vehicle_id' => [
+                'nullable',
+                Rule::exists('vehicles', 'id')->where('associate_id', $associateId),
+            ],
         ]);
 
         // Block assigning a driver who is not willing to go to the drop city.
@@ -174,7 +198,35 @@ class BookingController extends Controller
     }
 
     /**
-     * Ids of the cities this associate manages.
+     * The driver already on the ride, but only when he belongs to this associate.
+     *
+     * A ride can be handed back to the admin while still carrying a driver the
+     * admin assigned, and that driver is not this associate's to see, so he is
+     * left out of the list entirely.
+     *
+     * @return Collection<int, Driver>
+     */
+    private function assignedDriverWhenItIsMine(Booking $booking, int $associateId): Collection
+    {
+        if (! $booking->driver_id) {
+            return (new Driver)->newCollection();
+        }
+
+        $driver = Driver::with(['currentCity', 'preferredCities'])
+            ->ownedByAssociate($associateId)
+            ->whereKey($booking->driver_id)
+            ->first();
+
+        return $driver
+            ? $driver->newCollection([$driver])
+            : (new Driver)->newCollection();
+    }
+
+    /**
+     * Ids of the cities this associate may create a record in.
+     *
+     * Ownership decides which rides he sees; his cities only decide where a new
+     * record may be based.
      *
      * @return list<int>
      */
@@ -194,15 +246,16 @@ class BookingController extends Controller
     }
 
     /**
-     * A booking belongs to its pickup city, so the associate only manages
-     * bookings that start in one of his cities.
+     * A ride belongs to the associate the admin assigned it to, not to whoever
+     * manages the city it starts in. A ride that has not been assigned to
+     * anyone is the admin's alone.
      */
     private function authorizeBooking(Booking $booking): void
     {
         abort_unless(
-            Auth::user()->managesCity($booking->pickup_city_id),
+            $booking->isOwnedByAssociate(Auth::id()),
             403,
-            'This booking belongs to a city you do not manage.'
+            'This booking has not been assigned to you.'
         );
     }
 }

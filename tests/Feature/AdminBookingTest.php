@@ -42,8 +42,10 @@ class AdminBookingTest extends TestCase
         $city = City::factory()->create();
         $service = ServiceType::factory()->create();
 
-        $vehicle = Vehicle::factory()->create(['status' => 'Available']);
-        $driver = Driver::factory()->create(['status' => 'Available']);
+        // The driver and vehicle have to be standing in the pickup city, since
+        // that is the only place the admin may pick a resource from.
+        $vehicle = Vehicle::factory()->create(['status' => 'Available', 'city_id' => $city->id]);
+        $driver = Driver::factory()->create(['status' => 'Available', 'current_city_id' => $city->id]);
 
         $booking = Booking::factory()->create([
             'pickup_city_id' => $city->id,

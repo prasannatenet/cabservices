@@ -7,13 +7,14 @@
 
     <div class="admin-card p-6">
             <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
-                Leave the city empty to create a global service that is available in every city. A service assigned to a city is managed
-                by that city's associate.
+                Leave the city empty to create a global service that is available in every city. The associate you pick below owns the
+                service and manages it from his own panel.
             </p>
 
             <x-service-type-form
                 :action="route('admin.service-types.store')"
                 :cities="$cities"
+                :associates="$associates"
                 :cancel-url="route('admin.service-types.index')"
                 submit-label="Save Service"
             />

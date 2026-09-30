@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DocumentExpiryStatus;
+use App\Models\Concerns\BelongsToAssociate;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,12 +14,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Vehicle extends Model
 {
     /** @use HasFactory<VehicleFactory> */
-    use HasFactory;
+    use BelongsToAssociate, HasFactory;
 
     use SoftDeletes;
 
     protected $fillable = [
-        'created_by',
+        'created_by', 'associate_id',
         'name', 'model', 'vehicle_category_id', 'registration_number',
         'reference_number', 'seating_capacity', 'city_id', 'operating_city_id',
         'image', 'features', 'status', 'fuel_type', 'has_ac', 'luggage_capacity',
@@ -29,7 +30,9 @@ class Vehicle extends Model
     ];
 
     /**
-     * The admin or associate who added the vehicle.
+     * The admin or associate who added the vehicle. Distinct from "associate":
+     * a vehicle an admin added can still be handed to an associate, in which
+     * case the admin stays the creator and the associate becomes the owner.
      */
     public function creator(): BelongsTo
     {

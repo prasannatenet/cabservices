@@ -5,6 +5,10 @@
     'cities',
     'cancelUrl',
     'submitLabel' => 'Save Driver',
+    // Only the admin passes this. A driver an associate creates is his by
+    // definition, so his own form has no owner to pick.
+    'associates' => null,
+    'adminOwner' => 'none',
 ])
 
 <form action="{{ $action }}" method="POST" enctype="multipart/form-data" class="space-y-6 max-w-2xl">
@@ -71,6 +75,20 @@
             </select>
             <x-input-error :messages="$errors->get('current_city_id')" class="mt-2" />
         </div>
+
+        @if($associates !== null)
+            <div>
+                <x-input-label for="associate_id" :value="__('Associate (Owner)')" />
+                <select id="associate_id" name="associate_id" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm">
+                    <option value="{{ $adminOwner }}" @selected(old('associate_id', $driver?->associate_id ?? $adminOwner) == $adminOwner)>Admin Created</option>
+                    @foreach($associates as $associate)
+                        <option value="{{ $associate->id }}" @selected(old('associate_id', $driver?->associate_id) == $associate->id)>{{ $associate->name }}</option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Whose driver this is. The city he is based in does not decide this.</p>
+                <x-input-error :messages="$errors->get('associate_id')" class="mt-2" />
+            </div>
+        @endif
 
         <div>
             <x-input-label for="status" :value="__('Status')" />
