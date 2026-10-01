@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\BookingRequestAcknowledgement;
+use App\Mail\CustomerLoginDetails;
 use App\Mail\DriverAssigned;
 use App\Mail\DriverAssignmentNotice;
 use App\Mail\NewBookingRequest;
@@ -18,6 +19,9 @@ use Throwable;
  * Sends the transactional booking mails. Every notification is opt-in through
  * the admin settings screen, and a delivery failure is logged instead of
  * thrown: a customer must still get his booking when SMTP is unreachable.
+ *
+ * The mails are sent synchronously rather than through the queue, so a customer
+ * waiting on a booking confirmation receives it even when no queue worker runs.
  */
 class MailNotificationService
 {
@@ -30,11 +34,11 @@ class MailNotificationService
         $booking->loadMissing(['pickupCity', 'dropCity', 'serviceType', 'vehicle']);
 
         $this->sendToNewBookingRecipients(fn () => Mail::to($this->notificationRecipients())->send(
-            (new NewBookingRequest($booking))->afterCommit()
+            new NewBookingRequest($booking)
         ));
 
         $this->sendToCustomer($booking, fn () => Mail::to($booking->customer_email)->send(
-            (new BookingRequestAcknowledgement($booking))->afterCommit()
+            new BookingRequestAcknowledgement($booking)
         ));
     }
 
@@ -47,12 +51,14 @@ class MailNotificationService
         $booking->loadMissing(['pickupCity', 'dropCity', 'serviceType', 'vehicle', 'driver']);
 
         $this->sendToCustomer($booking, fn () => Mail::to($booking->customer_email)->send(
-            (new DriverAssigned($booking))->afterCommit()
+            new DriverAssigned($booking)
         ), 'mail.notify_customer_on_driver_assigned');
 
         $driver = $booking->driver;
 
-        if (! $driver) {
+        // The driver notice is opt-in like every other mail: turning mail
+        // notifications off stops it too.
+        if (! $driver || ! Setting::boolean('mail.enabled', true)) {
             return;
         }
 
@@ -64,9 +70,35 @@ class MailNotificationService
 
         $this->safely('driver assignment notice', function () use ($recipients, $booking): void {
             Mail::to($recipients)->send(
-                (new DriverAssignmentNotice($booking))->afterCommit()
+                new DriverAssignmentNotice($booking)
             );
         });
+    }
+
+    /**
+     * The email that hands a customer his login details. It goes out once, when
+     * his account is first created for a confirmed ride, so he can open his own
+     * panel and follow the trip.
+     */
+    public function notifyCustomerLoginDetails(Booking $booking, User $customer, string $plainPassword): void
+    {
+        $booking->loadMissing(['pickupCity', 'dropCity', 'serviceType', 'vehicle', 'driver']);
+
+        if (! Setting::boolean('mail.enabled', true)) {
+            return;
+        }
+
+        if (! Setting::boolean('mail.notify_customer_login_details', true)) {
+            return;
+        }
+
+        if (blank($customer->email)) {
+            return;
+        }
+
+        $this->safely('customer login details', fn () => Mail::to($customer->email)->send(
+            new CustomerLoginDetails($booking, $customer, $plainPassword)
+        ));
     }
 
     /**

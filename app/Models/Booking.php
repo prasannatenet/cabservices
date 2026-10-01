@@ -10,22 +10,18 @@ use Database\Factories\BookingFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Booking extends Model
 {
     /** @use HasFactory<BookingFactory> */
     use BelongsToAssociate, HasFactory;
 
-    /**
-     * The status label used when the assigned driver refused the ride. Both an
-     * admin rejection and a driver refusal share the Rejected status, so the
-     * admin screens label the driver's refusal with this distinct wording.
-     */
-    public const DRIVER_REJECTED_LABEL = 'Driver Rejected';
-
     protected $fillable = [
         'booking_number',        'customer_name', 'customer_phone', 'customer_email', 'customer_whatsapp',
-        'pickup_city_id', 'pickup_location', 'drop_city_id', 'drop_location',
+        'customer_user_id',
+        'pickup_city_id', 'pickup_location', 'pickup_landmark', 'pickup_location_link',
+        'drop_city_id', 'drop_city_label', 'drop_location',
         'pickup_date', 'pickup_time', 'drop_date', 'drop_time', 'passengers',
         'service_type_id', 'associate_id', 'vehicle_id', 'driver_id', 'vehicle_reference',
         'status', 'rejection_reason', 'rejection_source', 'admin_notes',
@@ -53,31 +49,78 @@ class Booking extends Model
     ];
 
     /**
-     * Status text for the admin screens: the driver's own refusal is labelled
-     * "Driver Rejected", everything else keeps its status name.
+     * Status text for the admin screens.
+     *
+     * A driver's own refusal is a status in its own right now, so this is simply
+     * the stored status. It stays as one method so every screen reads the label
+     * from a single place.
      */
     public function displayStatus(): string
     {
-        return $this->isRejectedByDriver() ? self::DRIVER_REJECTED_LABEL : $this->status->value;
+        return $this->status->value;
     }
 
     /**
-     * Whether the ride is rejected because the assigned driver refused it (or
-     * never answered within the response window).
+     * The drop city as it should be read on every screen.
+     *
+     * A customer may write any place at all as the destination, including one
+     * the fleet does not run in. When he does, the ride is still served from
+     * the pickup city, so the stored drop city says where the cab stands rather
+     * than where the traveller is going. The label the customer wrote is the
+     * real destination and wins whenever it is there, so a Jaipur to Kishangarh
+     * ride never reads as "Jaipur to Jaipur".
+     */
+    public function displayDropCity(): string
+    {
+        return $this->drop_city_label
+            ?: $this->dropCity?->name
+            ?: $this->drop_location;
+    }
+
+    /**
+     * The route as one line, e.g. "Jaipur → Kishangarh".
+     */
+    public function displayRoute(): string
+    {
+        return ($this->pickupCity?->name ?? $this->pickup_location)
+            .' → '.$this->displayDropCity();
+    }
+
+    /**
+     * Whether the customer is going somewhere the fleet does not run.
+     *
+     * True when he wrote a destination that is not the city the ride is served
+     * from, e.g. Kishangarh on a ride served from Jaipur. It drives the
+     * "Outside our network" marker so a dispatcher can see at a glance which
+     * rides are a long haul rather than a run in our own city.
+     */
+    public function isOutOfNetwork(): bool
+    {
+        if (blank($this->drop_city_label)) {
+            return false;
+        }
+
+        $servingCity = $this->dropCity?->name;
+
+        return $servingCity === null
+            || mb_strtolower(trim($this->drop_city_label)) !== mb_strtolower(trim($servingCity));
+    }
+
+    /**
+     * Whether the ride was refused by the assigned driver, or by nobody
+     * answering within the response window.
      */
     public function isRejectedByDriver(): bool
     {
-        return $this->status === BookingStatus::REJECTED
-            && $this->rejection_source === RejectionSource::Driver;
+        return $this->status === BookingStatus::DRIVER_REJECTED;
     }
 
     /**
-     * Whether the ride is rejected by the admin rather than by a driver.
+     * Whether the ride was rejected by the admin rather than by a driver.
      */
     public function isRejectedByAdmin(): bool
     {
-        return $this->status === BookingStatus::REJECTED
-            && $this->rejection_source !== RejectionSource::Driver;
+        return $this->status === BookingStatus::REJECTED;
     }
 
     /**
@@ -85,8 +128,16 @@ class Booking extends Model
      */
     public function scopeRejectedByDriver(Builder $query): Builder
     {
-        return $query->where('status', BookingStatus::REJECTED->value)
-            ->where('rejection_source', RejectionSource::Driver->value);
+        return $query->where('status', BookingStatus::DRIVER_REJECTED->value);
+    }
+
+    /**
+     * Restrict the query to rides the admin rejected, keeping driver refusals
+     * out.
+     */
+    public function scopeRejectedByAdmin(Builder $query): Builder
+    {
+        return $query->where('status', BookingStatus::REJECTED->value);
     }
 
     /**
@@ -98,16 +149,24 @@ class Booking extends Model
     }
 
     /**
-     * Restrict the query to rides that are still on their way, i.e. assigned,
-     * confirmed or started but not finished, cancelled or rejected yet.
+     * The statuses that hold on to a driver and a vehicle, i.e. the rides that
+     * are about to run or are running.
      */
     public function scopeOngoing(Builder $query): Builder
     {
-        return $query->whereIn('status', [
-            BookingStatus::DRIVER_ASSIGNED->value,
-            BookingStatus::CONFIRMED->value,
-            BookingStatus::TRIP_STARTED->value,
-        ]);
+        return $query->whereIn('status', BookingStatus::occupiesResources());
+    }
+
+    /**
+     * Restrict the query to rides that will not run as they stand: refused,
+     * rejected or cancelled.
+     */
+    public function scopeClosedWithoutRunning(Builder $query): Builder
+    {
+        return $query->whereIn('status', array_map(
+            fn (BookingStatus $status) => $status->value,
+            array_filter(BookingStatus::cases(), fn (BookingStatus $status) => $status->isClosedWithoutRunning()),
+        ));
     }
 
     /**
@@ -174,14 +233,16 @@ class Booking extends Model
      * readings, the bill worked out from them, the driver who drove it and the
      * distance covered. Once it is closed, nobody may touch it any more, so the
      * figures cannot be quietly rewritten after the fact. Every screen that
-     * edits a ride checks this before letting anything be saved.
+     * edits a ride checks this before letting anything be saved. A cancelled
+     * ride is frozen for the same reason: nothing follows it either.
      *
-     * A rejected or cancelled ride is deliberately not locked: the admin reopens
-     * a refused ride by giving it another driver, so those have to stay editable.
+     * A rejected or driver rejected ride is deliberately not locked: the admin
+     * reopens a refused ride by giving it another driver, so those have to stay
+     * editable.
      */
     public function isLocked(): bool
     {
-        return $this->status === BookingStatus::TRIP_COMPLETED;
+        return $this->status->isFinal();
     }
 
     /**
@@ -370,6 +431,16 @@ class Booking extends Model
     public function driver()
     {
         return $this->belongsTo(Driver::class);
+    }
+
+    /**
+     * The customer account that follows this ride from the customer panel.
+     * Nullable while the ride is only requested: it is given an account when the
+     * ride is confirmed.
+     */
+    public function customerUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'customer_user_id');
     }
 
     public function statusHistory()

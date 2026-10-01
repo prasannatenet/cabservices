@@ -13,6 +13,8 @@
                 :vehicle="$vehicle"
                 :cities="$cities"
                 :categories="$categories"
+                :services="$services"
+                :selected-services="$vehicle?->services->pluck('id')->all() ?? []"
                 :associates="$associates"
                 :cancel-url="route('admin.vehicles.index')"
                 submit-label="Update Vehicle"

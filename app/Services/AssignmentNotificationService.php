@@ -15,12 +15,13 @@ use Illuminate\Support\Facades\Notification;
 use Throwable;
 
 /**
- * Pushes the "the driver answered" event to the desktop of everyone who
- * dispatches that ride.
+ * Pushes the "the driver answered" event to the desktop and the in-app bell of
+ * everyone who dispatches that ride.
  *
  * Delivery is opt-in through the admin settings screen, and a failure is logged
  * instead of thrown: a driver answering his ride must never be rolled back
- * because a push service was unreachable.
+ * because a push service was unreachable. The notification is sent
+ * synchronously so the bell and the toast appear without a queue worker.
  */
 class AssignmentNotificationService
 {

@@ -17,6 +17,7 @@
                     route-prefix="associate"
                     :cities="$cities"
                     :categories="$categories"
+                    :services="$services"
                     :cancel-url="route('associate.vehicles.index')"
                     submit-label="Save Vehicle"
                 />

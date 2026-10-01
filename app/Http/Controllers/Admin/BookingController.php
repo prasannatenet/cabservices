@@ -3,22 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\BookingStatus;
-use App\Enums\RejectionSource;
 use App\Http\Controllers\Concerns\FiltersByAssociate;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use App\Models\BookingStatusHistory;
 use App\Models\City;
 use App\Models\Driver;
-use App\Models\DriverAssignment;
 use App\Models\Vehicle;
 use App\Services\BookingService;
 use App\Services\TripFareCalculator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
 {
@@ -35,18 +32,7 @@ class BookingController extends Controller
                         ->orWhere('customer_phone', 'like', "%{$search}%");
                 });
             })
-            ->when($request->filled('status'), function ($query) use ($request) {
-                // "Driver Rejected" is a label rather than a stored status: both
-                // rejections share BookingStatus::Rejected and differ only in
-                // who caused it, so filter on the source as well.
-                if ($request->query('status') === Booking::DRIVER_REJECTED_LABEL) {
-                    $query->rejectedByDriver();
-
-                    return;
-                }
-
-                $query->where('status', $request->query('status'));
-            })
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
             ->when($request->filled('pickup_city_id'), fn ($query) => $query->where('pickup_city_id', $request->query('pickup_city_id')))
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('pickup_date', '>=', $request->query('date_from')))
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('pickup_date', '<=', $request->query('date_to')))
@@ -68,12 +54,9 @@ class BookingController extends Controller
             'cities' => City::orderBy('name')->get(),
             // The same list the fleet and driver filters offer.
             ...$this->associateFilterOptions(),
-            // The plain "Rejected" option keeps every rejected ride, the extra
-            // option narrows it down to the ones the driver refused.
-            'statuses' => [
-                ...array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
-                Booking::DRIVER_REJECTED_LABEL,
-            ],
+            // Every status is a real one now, Driver Rejected among them, so the
+            // filter is a plain list of them.
+            'statuses' => array_map(fn (BookingStatus $status) => $status->value, BookingStatus::cases()),
         ]);
     }
 
@@ -95,6 +78,8 @@ class BookingController extends Controller
             'driverAssignment.driver',
             'driverAssignments.driver',
             'rideExpenses.driver',
+            // Who made each status change, for the timeline on the page.
+            'statusHistory.adminUser',
         ]);
 
         // Only what is actually standing in the pickup city can be put on this
@@ -115,6 +100,14 @@ class BookingController extends Controller
             // associate with something to offer.
             'pickupCityHasAssociate' => $associates['drivers']->isNotEmpty()
                 || $associates['vehicles']->isNotEmpty(),
+            // What may be done to this ride right now, which the ride itself
+            // decides. The page offers these as buttons rather than a status
+            // list, so nothing here can jump the ride to an impossible state.
+            'canCancel' => $booking->status->canTransitionTo(BookingStatus::CANCELLED),
+            'canReject' => $booking->status->canTransitionTo(BookingStatus::REJECTED),
+            'canComplete' => $booking->status->canTransitionTo(BookingStatus::TRIP_COMPLETED),
+            // The trail of what happened to the ride and in what order.
+            'statusTimeline' => $booking->statusHistory,
         ]);
     }
 
@@ -216,12 +209,11 @@ class BookingController extends Controller
             return back()->with('error', $booking->lockedMessage());
         }
 
-        // The form offers two dropdowns per resource: the admin's own, and the
-        // associate's behind a checkbox. Whichever one carries a value is the
-        // real choice, so both are collapsed into a single driver and vehicle
-        // here and everything below works with those.
+        // A ride's status is never set from the form. Choosing a driver or a
+        // vehicle is an assignment, and the booking moves to Driver Assigned on
+        // its own from there; cancelling, rejecting and completing are the three
+        // actions below, each with its own endpoint.
         $validated = $request->validate([
-            'status' => ['required', Rule::enum(BookingStatus::class)],
             'driver_id' => 'nullable|exists:drivers,id',
             'associate_driver_id' => 'nullable|exists:drivers,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -261,12 +253,11 @@ class BookingController extends Controller
                 && ! $driver->preferredCities->contains('id', $booking->drop_city_id)) {
                 return back()->with(
                     'error',
-                    'Driver '.$driver->name.' is not willing to go to '.($booking->dropCity->name ?? 'the drop city').'. Please select a driver who prefers that city.'
+                    'Driver '.$driver->name.' is not willing to go to '.$booking->displayDropCity().'. Please select a driver who prefers that city.'
                 );
             }
         }
 
-        $statusChanged = $validated['status'] !== $booking->status->value;
         $driverChanged = (isset($validated['driver_id']) && $booking->driver_id != $validated['driver_id']);
         $vehicleChanged = (isset($validated['vehicle_id']) && $booking->vehicle_id != $validated['vehicle_id']);
 
@@ -279,75 +270,85 @@ class BookingController extends Controller
             $booking->syncAssociateFromAssignment();
         }
 
-        // If driver changed but status is not changing, just assign the driver
-        if ($driverChanged && ! $statusChanged) {
-            $bookingService->assignDriver($booking, $validated['driver_id'], Auth::id() ?? 1);
-        }
-
-        if ($statusChanged) {
-            if ($validated['status'] === BookingStatus::CONFIRMED->value && $booking->status === BookingStatus::PENDING) {
-                $driverId = $validated['driver_id'] ?? $booking->driver_id;
-                if (! $driverId) {
-                    return back()->with('error', 'A driver must be assigned to confirm the booking.');
-                }
-                try {
-                    $bookingService->confirmBooking($booking, $driverId);
-
-                    return back()->with('success', 'Booking Confirmed successfully.');
-                } catch (\Exception $e) {
-                    return back()->with('error', $e->getMessage());
-                }
-            } elseif ($validated['status'] === BookingStatus::TRIP_COMPLETED->value && $booking->status !== BookingStatus::TRIP_COMPLETED) {
-                try {
-                    $bookingService->completeTrip($booking, Auth::id() ?? 1);
-
-                    return back()->with('success', 'Trip Completed. Vehicle and driver are now available from '.($booking->dropCity->name ?? 'the drop city').'.');
-                } catch (\Exception $e) {
-                    return back()->with('error', $e->getMessage());
-                }
-            } elseif ($validated['status'] === BookingStatus::CANCELLED->value && $booking->status !== BookingStatus::CANCELLED) {
-                try {
-                    $bookingService->cancelBooking($booking);
-
-                    return back()->with('success', 'Booking Cancelled successfully.');
-                } catch (\Exception $e) {
-                    return back()->with('error', $e->getMessage());
-                }
-            } else {
-                $oldStatus = $booking->status;
-                $booking->status = $validated['status'];
-                // Choosing Rejected here rejects the ride on the admin's behalf,
-                // while moving to any other status retires the earlier refusal,
-                // so the label always follows the status the admin just picked.
-                $booking->rejection_source = $validated['status'] === BookingStatus::REJECTED->value
-                    ? RejectionSource::Admin
-                    : null;
-                if ($driverChanged) {
-                    $booking->driver_id = $validated['driver_id'];
-                    DriverAssignment::create([
-                        'booking_id' => $booking->id,
-                        'driver_id' => $booking->driver_id,
-                        'vehicle_id' => $booking->vehicle_id,
-                        'assigned_by' => Auth::id() ?? 1,
-                        'status' => 'Active',
-                    ]);
-                }
-                $booking->save();
-
-                // Keep the ride with the associate who owns the assigned driver,
-                // so a manual status change never leaves it on the old owner.
-                $booking->syncAssociateFromAssignment();
-
-                BookingStatusHistory::create([
-                    'booking_id' => $booking->id,
-                    'old_status' => $oldStatus->value,
-                    'new_status' => $validated['status'],
-                    'changed_by' => Auth::id() ?? 1,
-                    'remarks' => 'Status manually updated.',
-                ]);
+        if ($driverChanged) {
+            try {
+                // Assigning puts the ride on Driver Assigned and opens the
+                // driver's six hour window to accept or refuse it.
+                $bookingService->assignDriver($booking, $validated['driver_id'], Auth::id() ?? 1);
+            } catch (\Exception $exception) {
+                return back()->with('error', $exception->getMessage());
             }
+
+            return back()->with('success', 'Driver assigned. He has 6 hours to accept or refuse this ride.');
         }
 
-        return back()->with('success', 'Booking updated successfully.');
+        return back()->with('success', $vehicleChanged
+            ? 'Vehicle updated successfully.'
+            : 'Nothing to change.');
+    }
+
+    /**
+     * Call the ride off.
+     */
+    public function cancel(Booking $booking, BookingService $bookingService): RedirectResponse
+    {
+        if ($booking->isLocked()) {
+            return back()->with('error', $booking->lockedMessage());
+        }
+
+        try {
+            $bookingService->cancelBooking($booking);
+        } catch (\Exception $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'Booking cancelled. The driver and vehicle have been released.');
+    }
+
+    /**
+     * Turn the request down, giving the reason that goes on the record.
+     */
+    public function reject(Request $request, Booking $booking, BookingService $bookingService): RedirectResponse
+    {
+        if ($booking->isLocked()) {
+            return back()->with('error', $booking->lockedMessage());
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'min:5', 'max:1000'],
+        ], [
+            'rejection_reason.required' => 'Please give the reason for rejecting this booking.',
+            'rejection_reason.min' => 'Please give a little more detail (at least 5 characters).',
+        ]);
+
+        try {
+            $bookingService->rejectBooking($booking, Auth::id() ?? 1, $validated['rejection_reason']);
+        } catch (\Exception $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'Booking rejected. The driver and vehicle have been released.');
+    }
+
+    /**
+     * Close the ride from here.
+     *
+     * The state machine decides whether this is allowed: only a ride that is
+     * actually running may be marked finished, so a ride that was never driven
+     * cannot be completed by hand.
+     */
+    public function complete(Booking $booking, BookingService $bookingService): RedirectResponse
+    {
+        if ($booking->isLocked()) {
+            return back()->with('error', $booking->lockedMessage());
+        }
+
+        try {
+            $bookingService->completeTrip($booking, Auth::id() ?? 1);
+        } catch (\Exception $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'Trip Completed. Vehicle and driver are now available from '.($booking->dropCity->name ?? 'the drop city').'.');
     }
 }

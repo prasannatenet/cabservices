@@ -4,16 +4,18 @@ namespace App\Mail;
 
 use App\Mail\Concerns\ResolvesConfiguredSender;
 use App\Models\Booking;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
 
-class DriverAssignmentNotice extends Mailable implements ShouldQueue
+/**
+ * Emailed to the driver with the details of the trip assigned to him.
+ *
+ * Sent synchronously so it does not depend on a queue worker.
+ */
+class DriverAssignmentNotice extends Mailable
 {
-    use Queueable, ResolvesConfiguredSender, SerializesModels;
+    use ResolvesConfiguredSender;
 
     /**
      * Create a new message instance.

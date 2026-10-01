@@ -59,7 +59,7 @@
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">Drop City</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ optional($booking->dropCity)->name }}</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ $booking->displayDropCity() }}</p>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">Drop Location</p>
@@ -114,13 +114,15 @@
                         @method('PUT')
 
                         <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Update Status</label>
-                                <select name="status" class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
-                                    @foreach(\App\Enums\BookingStatus::cases() as $status)
-                                        <option value="{{ $status->value }}" {{ $booking->status === $status ? 'selected' : '' }}>{{ $status->name }}</option>
-                                    @endforeach
-                                </select>
+                            {{-- The status is not chosen here: the booking moves
+                                 because a driver was assigned, answered, opened
+                                 the trip or closed it. --}}
+                            <div class="rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 p-3">
+                                <p class="text-sm font-semibold text-blue-900 dark:text-blue-200">This booking moves on its own</p>
+                                <p class="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                                    Assigning a driver gives him 6 hours to accept or refuse. Accepting confirms the
+                                    booking, starting the trip opens it and closing it finishes it.
+                                </p>
                             </div>
 
                             <div>
@@ -146,14 +148,55 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                <p class="text-xs text-gray-500 mt-1">{{ $availableDrivers->count() }} of your driver(s) available{{ $booking->dropCity ? ' willing to go to '.$booking->dropCity->name : '' }}.</p>
+                                <p class="text-xs text-gray-500 mt-1">{{ $availableDrivers->count() }} of your driver(s) available{{ $booking->drop_city_id ? ' willing to go to '.$booking->displayDropCity() : '' }}.</p>
                             </div>
 
                             <button type="submit" class="w-full mt-4 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
-                                Save Changes
+                                Save Vehicle &amp; Driver
                             </button>
                         </div>
                     </form>
+
+                    {{-- Only the actions this ride allows right now. --}}
+                    <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Other Actions</p>
+
+                        @if($booking->status->canTransitionTo(\App\Enums\BookingStatus::TRIP_COMPLETED))
+                            <form action="{{ route('associate.bookings.complete', $booking) }}" method="POST"
+                                onsubmit="return confirm('Mark this ride as completed? It can then no longer be changed.');">
+                                @csrf
+                                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                    Complete Trip
+                                </button>
+                            </form>
+                        @endif
+
+                        @if($booking->status->canTransitionTo(\App\Enums\BookingStatus::CANCELLED))
+                            <form action="{{ route('associate.bookings.cancel', $booking) }}" method="POST"
+                                onsubmit="return confirm('Cancel this booking? The driver and vehicle will be released.');">
+                                @csrf
+                                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                    Cancel Booking
+                                </button>
+                            </form>
+                        @endif
+
+                        @if($booking->status->canTransitionTo(\App\Enums\BookingStatus::REJECTED))
+                            <form action="{{ route('associate.bookings.reject', $booking) }}" method="POST">
+                                @csrf
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reject Booking</label>
+                                <textarea name="rejection_reason" rows="2" required minlength="5" maxlength="1000"
+                                    placeholder="Why is this request being turned down?"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"></textarea>
+                                @error('rejection_reason')
+                                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
+                                <button type="submit" class="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                    Reject Booking
+                                </button>
+                            </form>
+                        @endif
+                    </div>
                     @endif
                 </div>
             </div>

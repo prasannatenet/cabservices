@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Concerns\FiltersByAssociate;
 use App\Http\Controllers\Controller;
 use App\Models\City;
+use App\Models\ServiceType;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use App\Models\VehicleImage;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -55,8 +57,9 @@ class VehicleController extends Controller
         $cities = City::all();
         $categories = VehicleCategory::all();
         $associates = User::associateOptions();
+        $services = $this->serviceOptions();
 
-        return view('admin.vehicles.create', compact('cities', 'categories', 'associates'));
+        return view('admin.vehicles.create', compact('cities', 'categories', 'associates', 'services'));
     }
 
     public function store(Request $request)
@@ -65,13 +68,17 @@ class VehicleController extends Controller
 
         $validated['insurance_photo'] = $this->storeDocumentPhotos($request, 'insurance_photos');
         $validated['rc_photo'] = $this->storeDocumentPhotos($request, 'rc_photos');
-        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos']);
+        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'service_ids', 'services_selected']);
         $validated['created_by'] = auth()->id();
         // A vehicle the admin creates is the admin's own unless he hands it to an
         // associate, in which case that associate manages it from then on.
         $validated['associate_id'] = $this->resolveAssociateId($validated['associate_id'] ?? null);
 
         $vehicle = Vehicle::create($validated);
+
+        // The services this vehicle provides. An empty pick means a vehicle
+        // that has not been put on any service yet.
+        $vehicle->services()->sync($this->chosenServiceIds($request));
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
@@ -88,14 +95,15 @@ class VehicleController extends Controller
         $cities = City::all();
         $categories = VehicleCategory::all();
         $associates = User::associateOptions();
-        $vehicle->load('images');
+        $services = $this->serviceOptions();
+        $vehicle->load(['images', 'services']);
 
-        return view('admin.vehicles.edit', compact('vehicle', 'cities', 'categories', 'associates'));
+        return view('admin.vehicles.edit', compact('vehicle', 'cities', 'categories', 'associates', 'services'));
     }
 
     public function show(Vehicle $vehicle)
     {
-        $vehicle->load(['city', 'operatingCity', 'category', 'images', 'associate', 'creator']);
+        $vehicle->load(['city', 'operatingCity', 'category', 'images', 'associate', 'creator', 'services']);
 
         return view('admin.vehicles.show', compact('vehicle'));
     }
@@ -114,7 +122,7 @@ class VehicleController extends Controller
             (array) $request->input('remove_rc', []),
             $this->storeDocumentPhotos($request, 'rc_photos'),
         );
-        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'remove_insurance', 'remove_rc']);
+        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'remove_insurance', 'remove_rc', 'service_ids', 'services_selected']);
 
         // Ownership is only touched when the form actually sent the field, so a
         // form that does not show it cannot silently take a vehicle back from
@@ -126,6 +134,13 @@ class VehicleController extends Controller
         }
 
         $vehicle->update($validated);
+
+        // The form only sends its services when it showed them, so a form that
+        // does not show the field cannot quietly clear them. The marker the
+        // field itself sends is what tells an empty pick from an untouched one.
+        if ($request->boolean('services_selected')) {
+            $vehicle->services()->sync($this->chosenServiceIds($request));
+        }
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
@@ -191,10 +206,40 @@ class VehicleController extends Controller
             'remove_rc.*' => 'string',
             'images' => 'nullable|array',
             'images.*' => 'image|max:2048',
+            // The services this vehicle provides: any number of them.
+            'services_selected' => 'nullable|boolean',
+            'service_ids' => 'nullable|array',
+            'service_ids.*' => 'exists:service_types,id',
             // Who owns the vehicle: an existing associate, or the admin himself.
             'associate_id' => $this->associateOwnerRules(),
             'status' => 'required|string',
         ]);
+    }
+
+    /**
+     * The services a vehicle can be put on: everything still active, in the
+     * order they are listed everywhere else.
+     *
+     * @return Collection<int, ServiceType>
+     */
+    private function serviceOptions()
+    {
+        return ServiceType::where('status', 'Active')->get();
+    }
+
+    /**
+     * The services ticked on the form, as a clean list of ids.
+     *
+     * @return list<int>
+     */
+    private function chosenServiceIds(Request $request): array
+    {
+        return collect($request->input('service_ids', []))
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

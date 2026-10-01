@@ -85,7 +85,7 @@
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="font-medium">{{ $ride->pickupCity?->name ?? '—' }}</span>
                                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                                    <span class="font-medium">{{ $ride->dropCity?->name ?? '—' }}</span>
+                                    <span class="font-medium">{{ $ride->displayDropCity() }}</span>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1">{{ \Carbon\Carbon::parse($ride->pickup_date)->format('d M, Y') }} at {{ $ride->pickup_time }}</div>
                             </td>

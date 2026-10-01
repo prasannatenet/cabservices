@@ -20,9 +20,8 @@
                 <form action="{{ route('booking.search') }}" method="POST">
                     @csrf
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        
                         <!-- Pickup City -->
-                        <div>
+                        <div class="lg:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Pickup City</label>
                             <select name="pickup_city_id" required class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
                                 <option value="">Select City</option>
@@ -33,30 +32,17 @@
                             @error('pickup_city_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Drop City -->
-                        <div>
+                        <!-- Drop City: one of ours, or any place written out -->
+                        <div class="lg:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Drop City</label>
-                            <select name="drop_city_id" required class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                                <option value="">Select City</option>
+                            <input type="text" name="drop_city" list="drop-city-names" value="{{ old('drop_city') }}" required autocomplete="off" placeholder="Select or type a city" class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
+                            <datalist id="drop-city-names">
                                 @foreach($cities as $city)
-                                    <option value="{{ $city->id }}" {{ old('drop_city_id') == $city->id ? 'selected' : '' }}>{{ $city->name }}</option>
+                                    <option value="{{ $city->name }}">{{ $city->name }}</option>
                                 @endforeach
-                            </select>
-                            @error('drop_city_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-
-                        <!-- Pickup Location -->
-                        <div class="lg:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Pickup Location (Address)</label>
-                            <input type="text" name="pickup_location" value="{{ old('pickup_location') }}" required placeholder="Enter exact pickup address" class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                            @error('pickup_location') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-                        
-                        <!-- Drop Location -->
-                        <div class="lg:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Drop Location (Address)</label>
-                            <input type="text" name="drop_location" value="{{ old('drop_location') }}" required placeholder="Enter exact drop address" class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                            @error('drop_location') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            </datalist>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Do not see your city? Type it - we still take the booking.</p>
+                            @error('drop_city') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Date & Time -->
@@ -82,25 +68,8 @@
                             @error('drop_time') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
 
-                        <!-- Passengers & Service Type -->
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Passengers</label>
-                            <input type="number" name="passengers" value="{{ old('passengers', 1) }}" min="1" required class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                            @error('passengers') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Service Type</label>
-                            <select name="service_type_id" required class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                                <option value="">Select Service</option>
-                                @foreach($serviceTypes as $service)
-                                    <option value="{{ $service->id }}" {{ old('service_type_id') == $service->id ? 'selected' : '' }}>{{ $service->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('service_type_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-                        
                         <!-- Vehicle Preference -->
-                        <div class="lg:col-span-2">
+                        <div class="lg:col-span-4">
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vehicle Preference (Optional)</label>
                             <select name="vehicle_preference" class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
                                 <option value="">Any Vehicle Type</option>

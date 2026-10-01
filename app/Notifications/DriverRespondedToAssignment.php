@@ -5,8 +5,6 @@ namespace App\Notifications;
 use App\Enums\AssignmentResponseStatus;
 use App\Models\Booking;
 use App\Models\User;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
@@ -18,14 +16,19 @@ use NotificationChannels\WebPush\WebPushMessage;
  * is pushed as an operating system notification that appears over any other
  * software, even when the browser is minimised or on a background tab.
  *
+ * It is delivered synchronously rather than through the queue. The bell reads
+ * the database row this writes, and both the row and the desktop toast have to
+ * exist the moment the driver answers: queuing it would leave every dispatcher
+ * blind until a queue worker happened to run, and none may be running at all.
+ * The web push client already bounds its own HTTP timeout, so a slow push
+ * service cannot hold the driver's request open indefinitely.
+ *
  * The driver name is passed in rather than read from the booking: a rejected
  * ride has its driver_id cleared so the driver can be given another one, which
  * would otherwise leave the notification without a name.
  */
-class DriverRespondedToAssignment extends Notification implements ShouldQueue
+class DriverRespondedToAssignment extends Notification
 {
-    use Queueable;
-
     /**
      * @param  AssignmentResponseStatus  $response  How the driver answered the ride.
      * @param  string  $driverName  The driver who answered, captured before a rejection frees him.

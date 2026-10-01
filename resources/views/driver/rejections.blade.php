@@ -35,7 +35,7 @@
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600 dark:text-primary-400">{{ $booking?->booking_number }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                {{ optional($booking?->pickupCity)->name ?? $booking?->pickup_location }} &rarr; {{ optional($booking?->dropCity)->name ?? $booking?->drop_location }}
+                                {{ $booking?->displayRoute() }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                 {{ \Illuminate\Support\Carbon::parse($booking?->pickup_date)->format('d M, Y') }} at {{ \Illuminate\Support\Carbon::parse($booking?->pickup_time)->format('h:i A') }}

@@ -28,7 +28,7 @@
         </tr>
         <tr>
             <td style="padding:8px 0;color:#71717a;">Trip</td>
-            <td style="padding:8px 0;">{{ $booking->pickupCity?->name }} &rarr; {{ $booking->dropCity?->name }}</td>
+            <td style="padding:8px 0;">{{ $booking->displayRoute() }}</td>
         </tr>
         <tr>
             <td style="padding:8px 0;color:#71717a;">Pickup</td>

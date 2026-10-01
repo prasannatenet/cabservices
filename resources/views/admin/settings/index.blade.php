@@ -6,6 +6,65 @@
     </x-slot>
 
     <div class="admin-card">
+        <div class="p-6 text-gray-900 dark:text-gray-100">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Company details</h3>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 mb-6">
+                The company name is shown in the panel headers, page titles, emails and the booking site.
+            </p>
+
+            <form action="{{ route('admin.settings.company.update') }}" method="POST" class="space-y-6 max-w-2xl">
+                @csrf
+                @method('PUT')
+
+                <div>
+                    <label for="company_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Company name</label>
+                    <input type="text" name="company_name" id="company_name" value="{{ old('company_name', $companyName) }}" placeholder="CabServices" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    @error('company_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="flex justify-end gap-4">
+                    <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Save Company</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="p-6 text-gray-900 dark:text-gray-100">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Admin account</h3>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 mb-6">
+                The email and password you sign in with. Leave the password blank to keep the current one.
+            </p>
+
+            <form action="{{ route('admin.settings.account.update') }}" method="POST" class="space-y-6 max-w-2xl">
+                @csrf
+                @method('PUT')
+
+                <div>
+                    <label for="admin_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Admin email</label>
+                    <input type="email" name="admin_email" id="admin_email" value="{{ old('admin_email', Auth::user()->email) }}" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    @error('admin_email') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+
+                <div>
+                    <label for="admin_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">New password</label>
+                    <input type="password" name="admin_password" id="admin_password" autocomplete="new-password" placeholder="Leave blank to keep the current password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    @error('admin_password') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+
+                <div>
+                    <label for="admin_password_confirmation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm new password</label>
+                    <input type="password" name="admin_password_confirmation" id="admin_password_confirmation" autocomplete="new-password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+
+                <div class="flex justify-end gap-4">
+                    <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Save Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="admin-card">
             <div class="p-6 text-gray-900 dark:text-gray-100">
 
                 @if (session('success'))

@@ -62,6 +62,18 @@
                                 <p class="font-medium text-gray-900 dark:text-white">{{ optional($vehicle->category)->name ?? 'N/A' }}</p>
                             </div>
                             <div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Services Provided</p>
+                                @if($vehicle->services->isNotEmpty())
+                                    <div class="flex flex-wrap gap-1.5 mt-1">
+                                        @foreach($vehicle->services as $service)
+                                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">{{ $service->name }}</span>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <p class="font-medium text-gray-900 dark:text-white">None yet</p>
+                                @endif
+                            </div>
+                            <div>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">Registration Number</p>
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $vehicle->registration_number }}</p>
                             </div>

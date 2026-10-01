@@ -66,4 +66,17 @@ class UserFactory extends Factory
             'status' => User::STATUS_ACTIVE,
         ]);
     }
+
+    /**
+     * Indicate that the user is a customer: the person who booked a ride and
+     * follows it from the customer panel.
+     */
+    public function customer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => User::ROLE_CUSTOMER,
+            'status' => User::STATUS_ACTIVE,
+            'email_verified_at' => now(),
+        ]);
+    }
 }

@@ -6,7 +6,6 @@ use App\Enums\AssignmentResponseStatus;
 use App\Enums\BookingStatus;
 use App\Enums\RejectionSource;
 use App\Models\Booking;
-use App\Models\BookingStatusHistory;
 use App\Models\DriverAssignment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,16 +15,20 @@ use Illuminate\Support\Facades\Log;
  *
  * A driver has six hours to accept or refuse. Refusing requires a reason, and an
  * unanswered assignment is rejected automatically once the window closes, which
- * frees the booking for the admin to reassign.
+ * frees the booking for the admin to reassign. Either way the ride lands on
+ * Driver Rejected, its own status.
  */
 class AssignmentResponseService
 {
     public function __construct(
         protected AssignmentNotificationService $notifications,
+        protected BookingStatusService $statuses,
+        protected FleetStatusService $fleet,
+        protected CustomerAccountService $customers,
     ) {}
 
     /**
-     * The driver confirms he will take the ride.
+     * The driver confirms he will take the ride, which confirms the booking.
      *
      * @throws \Exception when the response window has already closed
      */
@@ -35,30 +38,29 @@ class AssignmentResponseService
 
         $booking = DB::transaction(function () use ($assignment): Booking {
             $booking = $assignment->booking;
-            $oldStatus = $booking->status;
 
             $assignment->forceFill([
                 'response_status' => AssignmentResponseStatus::Accepted,
                 'responded_at' => now(),
             ])->save();
 
-            $booking->update([
-                'status' => BookingStatus::CONFIRMED->value,
-                'rejection_source' => null,
-            ]);
+            // The driver is now definitely driving, so he and the vehicle stop
+            // waiting on an answer and become out on the ride.
+            $this->fleet->markAssigned($booking);
 
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::CONFIRMED->value,
-                'changed_by' => $assignment->assigned_by,
-                'remarks' => 'Driver accepted the assignment.',
-            ]);
-
-            return $booking;
+            return $this->statuses->transition(
+                $booking,
+                BookingStatus::CONFIRMED,
+                $assignment->assigned_by,
+                'Driver accepted the assignment.',
+            );
         });
 
         $this->notifications->notifyAccepted($booking, $assignment);
+
+        // The driver saying yes is what confirms the ride, so this is the moment
+        // the customer gets an account and the login details to reach it.
+        $this->customers->welcomeConfirmedCustomer($booking);
 
         return $booking;
     }
@@ -120,6 +122,11 @@ class AssignmentResponseService
     /**
      * Close an assignment as rejected and release the booking back to the admin.
      *
+     * The ride lands on Driver Rejected, a status of its own: an admin rejection
+     * is Rejected, so the two are told apart by the booking itself rather than
+     * by a second column read alongside it. The driver and vehicle are handed
+     * back, because this ride is not going to happen.
+     *
      * The dispatchers are notified once the ride is actually released, so a
      * driver refusing or the six hour window closing both raise a desktop
      * notification for whoever has to reassign the ride.
@@ -132,7 +139,6 @@ class AssignmentResponseService
     ): Booking {
         $booking = DB::transaction(function () use ($assignment, $status, $reason, $remarks): Booking {
             $booking = $assignment->booking()->firstOrFail();
-            $oldStatus = $booking->status;
 
             $assignment->forceFill([
                 'response_status' => $status,
@@ -141,23 +147,22 @@ class AssignmentResponseService
                 'status' => 'Cancelled',
             ])->save();
 
-            $booking->update([
-                'status' => BookingStatus::REJECTED->value,
-                'rejection_reason' => $reason,
-                // The driver side refused this ride, so the admin screens label
-                // it "Driver Rejected" rather than a rejection by the admin.
-                'rejection_source' => RejectionSource::Driver->value,
-                // Free the driver so he can be given another ride.
-                'driver_id' => null,
-            ]);
+            // The driver is not taking this ride after all, so he and the vehicle
+            // stand free again before the booking says so.
+            $this->fleet->release($booking);
 
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::REJECTED->value,
-                'changed_by' => $assignment->assigned_by,
-                'remarks' => $remarks,
-            ]);
+            $booking = $this->statuses->transition(
+                $booking,
+                BookingStatus::DRIVER_REJECTED,
+                $assignment->assigned_by,
+                $remarks,
+                [
+                    'rejection_reason' => $reason,
+                    'rejection_source' => RejectionSource::Driver,
+                    // Free the driver so he can be given another ride.
+                    'driver_id' => null,
+                ],
+            );
 
             return $booking;
         });

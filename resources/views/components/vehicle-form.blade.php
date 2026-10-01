@@ -5,6 +5,9 @@
     'vehicle' => null,
     'cities',
     'categories',
+    // The services a vehicle can be put on, and the ones it is already on.
+    'services' => [],
+    'selectedServices' => [],
     'cancelUrl',
     'submitLabel' => 'Save Vehicle',
     // Only the admin passes this. An associate's own form leaves it empty, since
@@ -12,6 +15,17 @@
     'associates' => null,
     'adminOwner' => 'none',
 ])
+
+@php
+    // The picker works on plain id/name pairs, and comes back filled in with
+    // whatever was ticked when the form was last sent.
+    $serviceOptions = collect($services)
+        ->map(fn ($service) => ['id' => (int) $service->id, 'name' => $service->name])
+        ->values();
+    $pickedServices = collect(old('service_ids', $selectedServices))
+        ->map(fn ($id) => (int) $id)
+        ->all();
+@endphp
 
 <form action="{{ $action }}" method="POST" enctype="multipart/form-data" class="space-y-6 max-w-2xl">
     @csrf
@@ -41,6 +55,40 @@
                 @endforeach
             </select>
             <x-input-error :messages="$errors->get('vehicle_category_id')" class="mt-2" />
+        </div>
+
+        <div class="md:col-span-2" x-data="servicePicker(@js($serviceOptions), @js($pickedServices))">
+            {{-- The marker that tells the controller this form did show the field,
+                 even when every pick was taken back off. --}}
+            <input type="hidden" name="services_selected" value="1">
+
+            <x-input-label value="Services Provided" />
+
+            {{-- What has been picked so far, listed above the dropdown. --}}
+            <div class="flex flex-wrap gap-2 mb-3" x-show="selected.length > 0">
+                <template x-for="service in selected" :key="service.id">
+                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-100 dark:border-primary-900/50">
+                        <span x-text="service.name"></span>
+                        <input type="hidden" name="service_ids[]" :value="service.id">
+                        <button type="button" @click="remove(service.id)" class="text-primary-500 hover:text-red-600 dark:text-primary-300 dark:hover:text-red-400" aria-label="Remove service">&times;</button>
+                    </span>
+                </template>
+            </div>
+
+            <div class="flex gap-2">
+                <select x-model="choice" class="block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-primary-500 dark:focus:border-primary-600 focus:ring-primary-500 dark:focus:ring-primary-600 rounded-md shadow-sm">
+                    <option value="">Select a service</option>
+                    <template x-for="service in available" :key="service.id">
+                        <option :value="service.id" x-text="service.name"></option>
+                    </template>
+                </select>
+                <button type="button" @click="add" class="shrink-0 px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700">
+                    {{ __('Add') }}
+                </button>
+            </div>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The services this vehicle will provide. Pick as many as apply.</p>
+            <x-input-error :messages="$errors->get('service_ids')" class="mt-2" />
         </div>
 
         <div>

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -27,6 +28,12 @@ class User extends Authenticatable
     public const ROLE_ASSOCIATE = 'associate';
 
     public const ROLE_DRIVER = 'driver';
+
+    /**
+     * The person who booked the ride. He has no panel of his own until his ride
+     * is confirmed, at which point an account is created for him.
+     */
+    public const ROLE_CUSTOMER = 'customer';
 
     public const STATUS_ACTIVE = 'Active';
 
@@ -48,6 +55,16 @@ class User extends Authenticatable
         return $this->hasOne(Driver::class);
     }
 
+    /**
+     * The rides he booked, shown in his own panel.
+     *
+     * @return HasMany<Booking, $this>
+     */
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'customer_user_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
@@ -67,6 +84,15 @@ class User extends Authenticatable
     public function isDriver(): bool
     {
         return $this->role === self::ROLE_DRIVER;
+    }
+
+    /**
+     * A customer is the person who booked the ride, given an account so he can
+     * follow it from his own panel.
+     */
+    public function isCustomer(): bool
+    {
+        return $this->role === self::ROLE_CUSTOMER;
     }
 
     /**
@@ -123,6 +149,7 @@ class User extends Authenticatable
         return match ($this->role) {
             self::ROLE_ADMIN => 'admin.dashboard',
             self::ROLE_ASSOCIATE => 'associate.dashboard',
+            self::ROLE_CUSTOMER => 'customer.dashboard',
             default => 'driver.dashboard',
         };
     }

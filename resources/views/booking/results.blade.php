@@ -7,7 +7,7 @@
                 <div>
                     <p class="text-sm text-gray-500 dark:text-gray-400">Your Search</p>
                     <h2 class="text-xl font-display font-bold text-gray-900 dark:text-white">
-                        {{ $pickupCity->name }} &rarr; {{ $dropCity->name }}
+                        {{ $pickupCity->name }} &rarr; {{ $dropCityLabel ?: $dropCity->name }}
                     </h2>
                     <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
                         {{ \Carbon\Carbon::parse($searchParams['pickup_date'])->format('d M Y') }} at {{ $searchParams['pickup_time'] }}
@@ -20,7 +20,7 @@
                                 at {{ $searchParams['drop_time'] }}
                             @endif
                         @endif
-                        &bull; {{ $searchParams['passengers'] }} Passenger(s) &bull; {{ $serviceType->name }}
+                        &bull; {{ $searchParams['passengers'] ?? 1 }} Passenger(s) @if($serviceType) &bull; {{ $serviceType->name }} @endif
                     </p>
                 </div>
                 <div>

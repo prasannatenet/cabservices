@@ -61,7 +61,23 @@
                         </div>
                         <div class="flex justify-between items-start">
                             <span class="text-sm text-gray-500 dark:text-gray-400">Route</span>
-                            <span class="text-sm font-medium text-gray-900 dark:text-white text-right max-w-xs">{{ $booking->pickupCity->name }} &rarr; {{ $booking->dropCity->name }}</span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white text-right max-w-xs">{{ $booking->displayRoute() }}</span>
+                        </div>
+                        <div class="flex justify-between items-start">
+                            <span class="text-sm text-gray-500 dark:text-gray-400">Pickup Address</span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white text-right max-w-xs">
+                                {{ $booking->pickup_location }}
+                                @if($booking->pickup_landmark)
+                                    <span class="block text-xs text-gray-500 dark:text-gray-400">Landmark: {{ $booking->pickup_landmark }}</span>
+                                @endif
+                                @if($booking->pickup_location_link)
+                                    <a href="{{ $booking->pickup_location_link }}" target="_blank" rel="noopener" class="block text-xs text-primary-600 dark:text-primary-400 underline">View on Google Maps</a>
+                                @endif
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-start">
+                            <span class="text-sm text-gray-500 dark:text-gray-400">Drop Address</span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white text-right max-w-xs">{{ $booking->drop_location }}</span>
                         </div>
                     </div>
                 </div>

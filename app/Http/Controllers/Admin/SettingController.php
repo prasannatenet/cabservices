@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\UpdateAdminAccountRequest;
+use App\Http\Requests\Admin\UpdateCompanySettingsRequest;
 use App\Http\Requests\Admin\UpdateMailSettingsRequest;
 use App\Http\Requests\Admin\UpdatePushSettingsRequest;
 use App\Mail\SettingsTestMail;
@@ -18,6 +20,7 @@ class SettingController extends Controller
     public function index(): View
     {
         return view('admin.settings.index', [
+            'companyName' => Setting::string('company.name', (string) config('app.name')),
             'mailEnabled' => Setting::boolean('mail.enabled', true),
             'fromAddress' => Setting::string('mail.from_address', (string) config('mail.from.address')),
             'fromName' => Setting::string('mail.from_name', (string) config('mail.from.name')),
@@ -68,6 +71,39 @@ class SettingController extends Controller
 
         return redirect()->route('admin.settings.index')
             ->with('success', 'Mail settings updated successfully.');
+    }
+
+    /**
+     * The company name is the application brand: it is applied to the app name
+     * so every layout, page title and email shows it.
+     */
+    public function updateCompany(UpdateCompanySettingsRequest $request): RedirectResponse
+    {
+        Setting::put('company.name', $request->validated()['company_name']);
+
+        return redirect()->route('admin.settings.index')
+            ->with('success', 'Company name updated successfully.');
+    }
+
+    /**
+     * Change the signed in admin's own email and, when a new password is given,
+     * that password too.
+     */
+    public function updateAccount(UpdateAdminAccountRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $user = $request->user();
+        $user->email = $validated['admin_email'];
+
+        if (filled($validated['admin_password'] ?? null)) {
+            $user->password = $validated['admin_password'];
+        }
+
+        $user->save();
+
+        return redirect()->route('admin.settings.index')
+            ->with('success', 'Your admin account was updated successfully.');
     }
 
     /**

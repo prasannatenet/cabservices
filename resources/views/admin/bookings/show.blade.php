@@ -96,10 +96,16 @@
                         <div class="md:col-span-2">
                             <p class="text-sm text-gray-500 dark:text-gray-400">Pickup Location</p>
                             <p class="font-medium text-gray-900 dark:text-white">{{ $booking->pickup_location }} ({{ optional($booking->pickupCity)->name }})</p>
+                            @if($booking->pickup_landmark)
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Landmark: {{ $booking->pickup_landmark }}</p>
+                            @endif
+                            @if($booking->pickup_location_link)
+                                <a href="{{ $booking->pickup_location_link }}" target="_blank" rel="noopener" class="inline-block mt-1 text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400">View pickup on Google Maps &rarr;</a>
+                            @endif
                         </div>
                         <div class="md:col-span-2">
                             <p class="text-sm text-gray-500 dark:text-gray-400">Drop Location</p>
-                            <p class="font-medium text-gray-900 dark:text-white">{{ $booking->drop_location }} ({{ optional($booking->dropCity)->name }})</p>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ $booking->drop_location }} ({{ $booking->displayDropCity() }})</p>
                         </div>
                         @if($booking->vehicle)
                             <div class="md:col-span-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
@@ -462,7 +468,7 @@
                     @endif
                 </div>
                 @php $rejections = $booking->driverAssignments->whereNotNull('rejection_reason')->sortByDesc('responded_at'); @endphp
-                @if($rejections->isNotEmpty() || $booking->status === \App\Enums\BookingStatus::REJECTED)
+                @if($rejections->isNotEmpty() || $booking->status->isClosedWithoutRunning())
                     <!-- Rejection details: who turned the ride down, and why -->
                     <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-red-100 dark:border-red-900/40 overflow-hidden p-6">
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
@@ -511,6 +517,49 @@
                     </div>
                 @endif
 
+                {{-- What happened to this ride and in what order. Every status
+                     change is recorded, so this explains where the current
+                     status came from instead of only showing it. --}}
+                @if($statusTimeline->isNotEmpty())
+                    <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden p-6">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+                            Status Timeline
+                        </h3>
+
+                        <ol class="space-y-4">
+                            @foreach($statusTimeline as $entry)
+                                <li class="flex gap-4">
+                                    <div class="flex flex-col items-center">
+                                        <span class="w-3 h-3 rounded-full bg-primary-500 shrink-0 mt-1"></span>
+                                        @unless($loop->last)
+                                            <span class="w-px flex-1 bg-gray-200 dark:bg-gray-700 mt-1"></span>
+                                        @endunless
+                                    </div>
+                                    <div class="pb-2 min-w-0">
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                                            {{ $entry->new_status }}
+                                            @if($entry->old_status)
+                                                <span class="font-normal text-gray-500 dark:text-gray-400">
+                                                    (from {{ $entry->old_status }})
+                                                </span>
+                                            @endif
+                                        </p>
+                                        @if($entry->remarks)
+                                            <p class="text-sm text-gray-600 dark:text-gray-300 mt-0.5">{{ $entry->remarks }}</p>
+                                        @endif
+                                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                            {{ $entry->created_at->format('d M, Y') }} at {{ $entry->created_at->format('h:i A') }}
+                                            @if($entry->adminUser)
+                                                &middot; by {{ $entry->adminUser->name }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ol>
+                    </div>
+                @endif
+
             </div>
 
             <!-- Right Column: Management Form -->
@@ -549,17 +598,23 @@
                         @method('PUT')
                         
                         <div class="space-y-4">
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Update Status</label>
-                                <select name="status" class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
-                                    @foreach(\App\Enums\BookingStatus::cases() as $status)
-                                        <option value="{{ $status->value }}" {{ $booking->status === $status ? 'selected' : '' }}>
-                                            {{ $status->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+
+                    {{-- The status is never chosen here: a ride moves because
+                         something happened to it. Assigning a driver puts it on
+                         Driver Assigned, the driver accepting confirms it, his
+                         opening the trip starts it and his closing it finishes
+                         it. The buttons below are the three things only a
+                         dispatcher can do. --}}
+                    <div class="rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 p-3">
+                        <p class="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                            This booking moves on its own
+                        </p>
+                        <p class="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                            Assign a driver below and he has 6 hours to accept or refuse. Accepting confirms the
+                            booking, his starting the trip opens it, and his closing it finishes it. A ride that
+                            was never driven cannot be marked complete.
+                        </p>
+                    </div>
 
                     {{-- An associate's fleet and drivers stay out of these two
                          dropdowns and live behind the checkbox below, so a ride is
@@ -601,7 +656,7 @@
                                 @endforeach
                             </select>
                             @if($booking->dropCity)
-                                <p class="text-xs text-gray-500 mt-1">{{ $availableDrivers->count() }} own driver(s) in {{ optional($booking->pickupCity)->name ?? 'the pickup city' }} willing to go to {{ $booking->dropCity->name }}.</p>
+                                <p class="text-xs text-gray-500 mt-1">{{ $availableDrivers->count() }} own driver(s) in {{ optional($booking->pickupCity)->name ?? 'the pickup city' }} willing to go to {{ $booking->displayDropCity() }}.</p>
                                 @if($availableDrivers->isEmpty())
                                     <p class="text-xs text-amber-600 mt-1 font-medium">No own drivers in {{ optional($booking->pickupCity)->name ?? 'the pickup city' }} are available for this ride.</p>
                                 @endif
@@ -662,10 +717,71 @@
                     </div>
 
                             <button type="submit" class="w-full mt-4 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
-                                Save Changes
+                                Save Vehicle &amp; Driver
                             </button>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Choosing a new driver releases the current one and starts a fresh 6 hour
+                                response window for the new driver.
+                            </p>
                         </div>
                     </form>
+
+                    {{-- The three things only a dispatcher can do to a ride. Each
+                         is shown only when the booking itself allows it, so an
+                         action that makes no sense from here is never offered. --}}
+                    <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Other Actions</p>
+
+                        @if($canComplete)
+                            <form action="{{ route('admin.bookings.complete', $booking) }}" method="POST"
+                                onsubmit="return confirm('Mark this ride as completed? It can then no longer be changed.');">
+                                @csrf
+                                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                    Complete Trip
+                                </button>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Closes the ride and moves the vehicle and driver to the drop city. Use this when
+                                    the driver cannot file the closing reading himself.
+                                </p>
+                            </form>
+                        @endif
+
+                        @if($canCancel)
+                            <form action="{{ route('admin.bookings.cancel', $booking) }}" method="POST"
+                                onsubmit="return confirm('Cancel this booking? The driver and vehicle will be released.');">
+                                @csrf
+                                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                    Cancel Booking
+                                </button>
+                            </form>
+                        @endif
+
+                        @if($canReject)
+                            <form action="{{ route('admin.bookings.reject', $booking) }}" method="POST">
+                                @csrf
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Reject Booking
+                                </label>
+                                <textarea name="rejection_reason" rows="2" required minlength="5" maxlength="1000"
+                                    placeholder="Why is this request being turned down?"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"></textarea>
+                                @error('rejection_reason')
+                                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
+                                <button type="submit" class="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                                    Reject Booking
+                                </button>
+                            </form>
+                        @endif
+
+                        @unless($canCancel || $canReject || $canComplete)
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                No dispatcher action is available from
+                                <strong>{{ $booking->displayStatus() }}</strong>. This booking moves on its own
+                                as the driver answers, starts and finishes it.
+                            </p>
+                        @endunless
+                    </div>
                     @endif
                 </div>
 

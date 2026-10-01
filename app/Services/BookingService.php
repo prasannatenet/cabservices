@@ -7,6 +7,7 @@ use App\Enums\RejectionSource;
 use App\Mail\RideTrackingLinkMail;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
+use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverAssignment;
 use App\Models\Vehicle;
@@ -20,10 +21,31 @@ class BookingService
     public function __construct(
         protected MailNotificationService $mailNotifications,
         protected TripFareCalculator $tripFare,
+        protected BookingStatusService $statuses,
+        protected FleetStatusService $fleet,
+        protected CustomerAccountService $customers,
+        protected LocationCityResolver $cityResolver,
     ) {}
 
+    /**
+     * File a new booking request.
+     *
+     * The trip may only start in a city the fleet runs in, but the customer is
+     * free to write any destination at all. So the two cities are settled here,
+     * once, for every caller: the written destination is matched against our
+     * cities, and one that names none of them is served from the pickup city
+     * with the name the customer wrote kept on the ride. Keeping this here
+     * rather than in a controller is what lets the web form and the JSON API
+     * behave the same way.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws \Exception when the pickup city cannot be worked out
+     */
     public function createBookingRequest(array $data)
     {
+        $data = $this->settleTripCities($data);
+
         $booking = DB::transaction(function () use ($data) {
             $bookingNumber = 'BKG-'.strtoupper(Str::random(8));
 
@@ -65,64 +87,78 @@ class BookingService
             throw new \Exception('Selected vehicle is no longer available for this time slot.');
         }
 
-        return DB::transaction(function () use ($booking, $adminId) {
-            $oldStatus = $booking->status;
-            $booking->update([
-                'status' => BookingStatus::APPROVED->value,
-            ]);
+        $booking = DB::transaction(fn () => $this->statuses->transition(
+            $booking,
+            BookingStatus::APPROVED,
+            $adminId,
+            'Booking approved. Awaiting driver assignment.',
+        ));
 
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::APPROVED->value,
-                'changed_by' => $adminId,
-                'remarks' => 'Booking approved. Awaiting driver assignment.',
-            ]);
-
-            return $booking;
-        });
+        return $booking;
     }
 
-    public function rejectBooking(Booking $booking, $adminId, $reason)
+    /**
+     * The admin turns the request down, giving the customer a reason.
+     */
+    public function rejectBooking(Booking $booking, $adminId, string $reason)
     {
-        return DB::transaction(function () use ($booking, $adminId, $reason) {
-            $oldStatus = $booking->status;
-            $booking->update([
-                'status' => BookingStatus::REJECTED->value,
-                'rejection_reason' => $reason,
-                'rejection_source' => RejectionSource::Admin->value,
-            ]);
+        $booking = DB::transaction(function () use ($booking, $adminId, $reason) {
+            // Anything already on the ride is given back before the ride stops,
+            // so the driver and vehicle are not left marked as busy for a ride
+            // that will never happen.
+            $this->fleet->release($booking);
 
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::REJECTED->value,
-                'changed_by' => $adminId,
-                'remarks' => 'Booking rejected: '.$reason,
-            ]);
-
-            return $booking;
+            return $this->statuses->transition(
+                $booking,
+                BookingStatus::REJECTED,
+                $adminId,
+                'Booking rejected: '.$reason,
+                [
+                    'rejection_reason' => $reason,
+                    'rejection_source' => RejectionSource::Admin,
+                ],
+            );
         });
+
+        return $booking;
     }
 
+    /**
+     * Put a driver on the ride and open his six hour response window.
+     *
+     * Assigning rewrites the status to Driver Assigned, which would drag a
+     * finished ride back into play, so a closed ride is never reopened. A ride
+     * that already has a driver gives the old one back first.
+     */
     public function assignDriver(Booking $booking, $driverId, $adminId)
     {
-        // Assigning a driver rewrites the status back to "Driver Assigned", which
-        // would drag a finished trip back into play, so a completed ride is
-        // never reopened.
         if ($booking->isLocked()) {
             throw new \Exception($booking->lockedMessage());
         }
 
+        // The driver's willingness is checked first: it is the argument being
+        // passed in, so a refusal about him is the useful answer.
         $this->ensureDriverWillingToGoTo($booking, $driverId);
 
-        $booking = DB::transaction(function () use ($booking, $driverId, $adminId) {
-            $oldStatus = $booking->status;
+        // Every assignment records the vehicle it was made for, so a ride with
+        // no vehicle on it cannot be given a driver. Saying so plainly beats
+        // letting the insert fail on a database constraint.
+        if (! $booking->vehicle_id) {
+            throw new \Exception('Choose a vehicle for this booking before assigning a driver to it.');
+        }
 
-            $booking->update([
-                'status' => BookingStatus::DRIVER_ASSIGNED->value,
-                'driver_id' => $driverId,
-            ]);
+        $booking = DB::transaction(function () use ($booking, $driverId, $adminId) {
+            // Swapping the driver hands the previous one back before the new one
+            // is taken on, so nobody is left marked busy for a ride he is not on.
+            $this->fleet->release($booking);
+
+            $booking = $this->statuses->transition(
+                $booking,
+                BookingStatus::DRIVER_ASSIGNED,
+                $adminId,
+                'Driver assigned.',
+                ['driver_id' => $driverId],
+            );
 
             // Handing a ride to this driver hands it to the associate who owns
             // him, and only to him: the ride's pickup city has no say in it.
@@ -139,13 +175,7 @@ class BookingService
             // The driver now has a limited window to accept or refuse the ride.
             $assignment->startResponseWindow();
 
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::DRIVER_ASSIGNED->value,
-                'changed_by' => $adminId,
-                'remarks' => 'Driver assigned.',
-            ]);
+            $this->fleet->markAssigned($booking);
 
             return $booking;
         });
@@ -155,17 +185,28 @@ class BookingService
         return $booking;
     }
 
+    /**
+     * Confirm the ride on the driver's behalf.
+     *
+     * The driver accepting his assignment confirms the ride on its own, so this
+     * exists for the admin who has to confirm without the driver's answer, e.g.
+     * when he is reachable by phone. It is only offered from the states that
+     * may be confirmed.
+     */
     public function confirmBooking(Booking $booking, $driverId)
     {
         $this->ensureDriverWillingToGoTo($booking, $driverId);
 
         $booking = DB::transaction(function () use ($booking, $driverId) {
-            $oldStatus = $booking->status;
+            $this->fleet->markAssigned($booking);
 
-            $booking->update([
-                'status' => BookingStatus::CONFIRMED->value,
-                'driver_id' => $driverId,
-            ]);
+            $booking = $this->statuses->transition(
+                $booking,
+                BookingStatus::CONFIRMED,
+                Auth::id() ?? 1, // Fallback for tests
+                'Booking confirmed and driver assigned.',
+                ['driver_id' => $driverId],
+            );
 
             // Confirming with this driver makes the ride the associate's when he
             // owns the driver, and the admin's when he does not.
@@ -176,18 +217,10 @@ class BookingService
                     'booking_id' => $booking->id,
                     'driver_id' => $driverId,
                     'vehicle_id' => $booking->vehicle_id,
-                    'assigned_by' => Auth::id() ?? 1, // Fallback for tests
+                    'assigned_by' => Auth::id() ?? 1,
                     'status' => 'Active',
                 ]);
             }
-
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::CONFIRMED->value,
-                'changed_by' => Auth::id() ?? 1,
-                'remarks' => 'Booking confirmed and driver assigned.',
-            ]);
 
             return $booking;
         });
@@ -196,9 +229,18 @@ class BookingService
             $this->mailNotifications->notifyDriverAssigned($booking);
         }
 
+        // Confirming by hand reaches the same place as the driver accepting it,
+        // so the customer gets his account and login details here too.
+        $this->customers->welcomeConfirmedCustomer($booking);
+
         return $booking;
     }
 
+    /**
+     * Call the ride off.
+     *
+     * Anything already on it is handed back, because the ride will not now run.
+     */
     public function cancelBooking(Booking $booking)
     {
         if ($booking->isLocked()) {
@@ -206,21 +248,15 @@ class BookingService
         }
 
         return DB::transaction(function () use ($booking) {
-            $oldStatus = $booking->status;
+            $this->fleet->release($booking);
 
-            $booking->update([
-                'status' => BookingStatus::CANCELLED->value,
-            ]);
-
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::CANCELLED->value,
-                'changed_by' => Auth::id() ?? 1,
-                'remarks' => 'Booking cancelled.',
-            ]);
-
-            return $booking;
+            return $this->statuses->transition(
+                $booking,
+                BookingStatus::CANCELLED,
+                Auth::id() ?? 1,
+                'Booking cancelled.',
+                ['rejection_reason' => null, 'rejection_source' => null],
+            );
         });
     }
 
@@ -238,23 +274,22 @@ class BookingService
         }
 
         $booking = DB::transaction(function () use ($booking, $odometerKm, $odometerPhoto, $changedBy) {
-            $oldStatus = $booking->status;
+            $booking = $this->statuses->transition(
+                $booking,
+                BookingStatus::TRIP_STARTED,
+                $changedBy,
+                'Trip started by the driver. Odometer at start: '.number_format($odometerKm).' km.',
+                [
+                    'start_odometer_km' => $odometerKm,
+                    'start_odometer_photo' => $odometerPhoto,
+                    'trip_started_at' => now(),
+                    'tracking_id' => Str::uuid()->toString(),
+                ],
+            );
 
-            $booking->update([
-                'status' => BookingStatus::TRIP_STARTED->value,
-                'start_odometer_km' => $odometerKm,
-                'start_odometer_photo' => $odometerPhoto,
-                'trip_started_at' => now(),
-                'tracking_id' => Str::uuid()->toString(),
-            ]);
-
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus->value,
-                'new_status' => BookingStatus::TRIP_STARTED->value,
-                'changed_by' => $changedBy,
-                'remarks' => 'Trip started by the driver. Odometer at start: '.number_format($odometerKm).' km.',
-            ]);
+            // The driver is behind the wheel from here, so he and the vehicle
+            // stop being merely booked and become out on the ride.
+            $this->fleet->markOnTrip($booking);
 
             return $booking;
         });
@@ -277,6 +312,10 @@ class BookingService
      *
      * Whenever both readings are in, the amount of the ride is worked out from
      * that distance and the rate card of the vehicle and stored with it.
+     *
+     * Completing a ride that never started is refused by the state machine: the
+     * admin may close one he started by hand or whose driver filed the closing
+     * reading, but he cannot mark an undriven ride finished.
      */
     public function completeTrip(Booking $booking, $adminId, ?int $endOdometerKm = null, ?string $endOdometerPhoto = null)
     {
@@ -290,9 +329,7 @@ class BookingService
         }
 
         return DB::transaction(function () use ($booking, $adminId, $endOdometerKm, $endOdometerPhoto) {
-            $oldStatus = $booking->status;
-
-            $attributes = ['status' => BookingStatus::TRIP_COMPLETED->value];
+            $attributes = [];
 
             if ($endOdometerKm !== null) {
                 $attributes['end_odometer_km'] = $endOdometerKm;
@@ -300,6 +337,8 @@ class BookingService
                 $attributes['trip_ended_at'] = now();
             }
 
+            // Filled in memory only, so the bill can be worked out from the
+            // closing reading before anything is stored.
             $booking->fill($attributes);
 
             // The bill is worked out while the readings are at hand and stored
@@ -311,11 +350,26 @@ class BookingService
                 $fare = $this->tripFare->calculate($booking, $tripDistanceKm);
 
                 if ($fare !== null) {
+                    $attributes = array_merge($attributes, $fare);
+
+                    // Filled in memory as well, so the completion note written
+                    // below quotes the amount that is actually being stored.
                     $booking->fill($fare);
                 }
             }
 
-            $booking->save();
+            // The completion note is written from the finished ride, so it is
+            // composed before the status moves rather than after.
+            $remarks = $this->completionRemarks($booking)
+                .' Vehicle and driver relocated to '.($booking->dropCity->name ?? 'the drop city').'.';
+
+            $booking = $this->statuses->transition(
+                $booking,
+                BookingStatus::TRIP_COMPLETED,
+                $adminId,
+                $remarks,
+                $attributes,
+            );
 
             if ($booking->vehicle_id && $booking->drop_city_id) {
                 Vehicle::whereKey($booking->vehicle_id)->update(['city_id' => $booking->drop_city_id]);
@@ -325,14 +379,9 @@ class BookingService
                 Driver::whereKey($booking->driver_id)->update(['current_city_id' => $booking->drop_city_id]);
             }
 
-            BookingStatusHistory::create([
-                'booking_id' => $booking->id,
-                'old_status' => $oldStatus,
-                'new_status' => BookingStatus::TRIP_COMPLETED->value,
-                'changed_by' => $adminId,
-                'remarks' => $this->completionRemarks($booking)
-                    .' Vehicle and driver relocated to '.($booking->dropCity->name ?? 'the drop city').'.',
-            ]);
+            // The ride is over, so the driver and the vehicle it was using stand
+            // free from here in the drop city.
+            $this->fleet->release($booking);
 
             return $booking;
         });
@@ -387,6 +436,66 @@ class BookingService
     }
 
     /**
+     * Work out the two cities a ride runs between.
+     *
+     * The pickup city has to be one of ours - a ride cannot start where we have
+     * no cabs - so it comes from the chosen id, the pickup address, or the one
+     * city the service runs in, in that order. The destination is free: a
+     * written place that names one of our cities is served from that city, and
+     * anything else is served from the pickup city with the customer's own
+     * wording kept in the label so the screens can show where he is really
+     * going.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     *
+     * @throws \Exception when the pickup city cannot be worked out
+     */
+    protected function settleTripCities(array $data): array
+    {
+        $pickupCity = $this->cityFromId($data['pickup_city_id'] ?? null)
+            ?? $this->cityResolver->resolve($data['pickup_location'] ?? null)
+            ?? $this->cityResolver->soleCity();
+
+        if (! $pickupCity instanceof City) {
+            throw new \Exception('We could not work out the pickup city of this trip. Please choose it again.');
+        }
+
+        // The destination the customer wrote, whether it arrived as the search
+        // field or as the label an earlier step already stored.
+        $writtenDropCity = trim((string) ($data['drop_city'] ?? $data['drop_city_label'] ?? ''));
+
+        if ($writtenDropCity !== '') {
+            $dropCity = $this->cityResolver->resolve($writtenDropCity) ?? $pickupCity;
+            $dropCityLabel = $writtenDropCity;
+        } else {
+            $dropCity = $this->cityFromId($data['drop_city_id'] ?? null)
+                ?? $this->cityResolver->resolve($data['drop_location'] ?? null)
+                ?? $pickupCity;
+            $dropCityLabel = null;
+        }
+
+        $data['pickup_city_id'] = $pickupCity->id;
+        $data['drop_city_id'] = $dropCity->id;
+        $data['drop_city_label'] = $dropCityLabel;
+        unset($data['drop_city']);
+
+        return $data;
+    }
+
+    /**
+     * The city with this id, or null when no usable id was given.
+     */
+    protected function cityFromId($cityId): ?City
+    {
+        if ($cityId === null || $cityId === '') {
+            return null;
+        }
+
+        return City::find($cityId);
+    }
+
+    /**
      * Guard: a driver who selected preferred cities must include the
      * booking's drop city, otherwise he cannot be assigned to that trip.
      * Drivers with no preference at all remain assignable everywhere.
@@ -407,9 +516,9 @@ class BookingService
 
         if ($driver->preferredCities->isNotEmpty()
             && ! $driver->preferredCities->contains('id', (int) $booking->drop_city_id)) {
-            $dropCity = $booking->dropCity?->name ?? 'the drop city';
-
-            throw new \Exception("Driver {$driver->name} is not willing to go to {$dropCity}.");
+            // The written destination, so a Kishangarh ride does not report
+            // itself as a trip to the pickup city.
+            throw new \Exception("Driver {$driver->name} is not willing to go to {$booking->displayDropCity()}.");
         }
     }
 }

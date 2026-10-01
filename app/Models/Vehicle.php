@@ -138,9 +138,26 @@ class Vehicle extends Model
         return $this->belongsTo(VehicleCategory::class, 'vehicle_category_id');
     }
 
+    /**
+     * The services this vehicle provides. One vehicle can run several of them,
+     * and the same service can be offered by several vehicles.
+     */
+    public function services()
+    {
+        return $this->belongsToMany(ServiceType::class, 'service_type_vehicle');
+    }
+
     public function images()
     {
         return $this->hasMany(VehicleImage::class);
+    }
+
+    /**
+     * The bookings this vehicle was booked for.
+     */
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
     }
 
     public function getVehicleTypeAttribute()

@@ -33,7 +33,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                             </svg>
                         </div>
-                        <span class="font-display font-bold text-lg tracking-tight text-gray-900 dark:text-white">Admin</span>
+                        <span class="font-display font-bold text-lg tracking-tight text-gray-900 dark:text-white">{{ config('app.name') }}</span>
                     </div>
                     <button @click="sidebarOpen = true" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none">
                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

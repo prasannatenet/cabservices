@@ -112,6 +112,91 @@ Alpine.data('notificationBell', (routes = {}) => ({
     },
 }));
 
+/**
+ * The booking review page. The customer can still correct the dates on the
+ * prefilled trip form, so the amount he is about to request is worked out again
+ * with the rule the server bills with: one day for a hire that has no drop date
+ * or drops on the day it starts, otherwise the pickup day up to and including
+ * the drop day.
+ */
+Alpine.data('bookingReview', ({ ratePerDay = 0, kmPerDay = 0, pickupDate = '', dropDate = '' }) => ({
+    pickupDate,
+    dropDate,
+    ratePerDay: Number(ratePerDay),
+    kmPerDay: Number(kmPerDay),
+
+    get days() {
+        if (!this.pickupDate || !this.dropDate) {
+            return 1;
+        }
+
+        const start = new Date(`${this.pickupDate}T00:00:00`);
+        const end = new Date(`${this.dropDate}T00:00:00`);
+
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+            return 1;
+        }
+
+        return Math.round((end - start) / 86400000) + 1;
+    },
+
+    get total() {
+        return this.days * this.ratePerDay;
+    },
+
+    get includedKm() {
+        return this.days * this.kmPerDay;
+    },
+
+    money(value) {
+        return Number(value).toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    },
+
+    whole(value) {
+        return Number(value).toLocaleString('en-IN');
+    },
+}));
+
+/**
+ * The services a vehicle provides. One service is picked at a time from the
+ * dropdown, and each pick joins the chosen ones shown above it; taking a pick
+ * off puts that service back into the dropdown.
+ */
+Alpine.data('servicePicker', (services = [], pickedIds = []) => ({
+    services,
+    selected: [],
+    choice: '',
+
+    init() {
+        const picked = pickedIds.map((id) => Number(id));
+        this.selected = this.services.filter((service) => picked.includes(Number(service.id)));
+    },
+
+    get available() {
+        const picked = this.selected.map((service) => Number(service.id));
+
+        return this.services.filter((service) => !picked.includes(Number(service.id)));
+    },
+
+    add() {
+        const service = this.services.find((item) => Number(item.id) === Number(this.choice));
+
+        if (!service) {
+            return;
+        }
+
+        this.selected = [...this.selected, service];
+        this.choice = '';
+    },
+
+    remove(id) {
+        this.selected = this.selected.filter((service) => Number(service.id) !== Number(id));
+    },
+}));
+
 Alpine.start();
 
 /**
@@ -235,12 +320,3 @@ window.desktopNotificationStatus = async function () {
 if (pushKey) {
     pushRegistration();
 }
-
-
-/**
- * Echo exposes an expressive API for subscribing to channels and listening
- * for events that are broadcast by Laravel. Echo and event broadcasting
- * allow your team to quickly build robust real-time web applications.
- */
-
-import './echo';

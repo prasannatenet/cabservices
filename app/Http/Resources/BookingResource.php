@@ -25,6 +25,11 @@ class BookingResource extends JsonResource
 
             'pickup_city' => new CityResource($this->whenLoaded('pickupCity')),
             'drop_city' => new CityResource($this->whenLoaded('dropCity')),
+            // The destination the customer wrote, which is the real one when it
+            // names a place the fleet does not run in.
+            'drop_city_label' => $this->drop_city_label,
+            'display_drop_city' => $this->displayDropCity(),
+            'is_out_of_network' => $this->isOutOfNetwork(),
             'service_type' => new ServiceTypeResource($this->whenLoaded('serviceType')),
             'vehicle' => new VehicleResource($this->whenLoaded('vehicle')),
 

@@ -4,16 +4,20 @@ namespace App\Mail;
 
 use App\Mail\Concerns\ResolvesConfiguredSender;
 use App\Models\Booking;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
 
-class BookingRequestAcknowledgement extends Mailable implements ShouldQueue
+/**
+ * Emailed to the customer to acknowledge the booking request, with the trip
+ * details they submitted.
+ *
+ * Sent synchronously in the request that creates the booking, so the customer
+ * is emailed even when no queue worker is running.
+ */
+class BookingRequestAcknowledgement extends Mailable
 {
-    use Queueable, ResolvesConfiguredSender, SerializesModels;
+    use ResolvesConfiguredSender;
 
     /**
      * Create a new message instance.

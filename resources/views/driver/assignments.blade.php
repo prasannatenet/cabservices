@@ -30,10 +30,10 @@
                         <div class="min-w-0">
                             <p class="text-base font-bold text-gray-900 dark:text-white">{{ $booking?->booking_number }}</p>
                             <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                {{ optional($booking?->pickupCity)->name ?? $booking?->pickup_location }}
-                                &rarr;
-                                {{ optional($booking?->dropCity)->name ?? $booking?->drop_location }}
+                                {{ $booking?->displayRoute() }}
                             </p>
+                            @if($booking)
+                            @endif
                         </div>
 
                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border whitespace-nowrap

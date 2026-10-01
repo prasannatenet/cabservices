@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Associate;
 
 use App\Http\Controllers\Controller;
 use App\Models\City;
+use App\Models\ServiceType;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use App\Models\VehicleImage;
@@ -56,6 +57,7 @@ class VehicleController extends Controller
         return view('associate.vehicles.create', [
             'cities' => $this->assignedCities(),
             'categories' => VehicleCategory::all(),
+            'services' => $this->serviceOptions(),
         ]);
     }
 
@@ -65,13 +67,17 @@ class VehicleController extends Controller
 
         $validated['insurance_photo'] = $this->storeDocumentPhotos($request, 'insurance_photos');
         $validated['rc_photo'] = $this->storeDocumentPhotos($request, 'rc_photos');
-        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos']);
+        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'service_ids', 'services_selected']);
         $validated['created_by'] = auth()->id();
         // A vehicle an associate creates is his own, so it is listed in his
         // panel rather than the admin's.
         $validated['associate_id'] = auth()->id();
 
         $vehicle = Vehicle::create($validated);
+
+        // The services this vehicle provides. An empty pick means a vehicle
+        // that has not been put on any service yet.
+        $vehicle->services()->sync($this->chosenServiceIds($request));
 
         $this->storeGalleryImages($request, $vehicle);
 
@@ -82,7 +88,7 @@ class VehicleController extends Controller
     {
         $this->authorizeVehicle($vehicle);
 
-        $vehicle->load(['city', 'operatingCity', 'category', 'images']);
+        $vehicle->load(['city', 'operatingCity', 'category', 'images', 'services']);
 
         return view('associate.vehicles.show', compact('vehicle'));
     }
@@ -91,12 +97,13 @@ class VehicleController extends Controller
     {
         $this->authorizeVehicle($vehicle);
 
-        $vehicle->load('images');
+        $vehicle->load(['images', 'services']);
 
         return view('associate.vehicles.edit', [
             'vehicle' => $vehicle,
             'cities' => $this->assignedCities(),
             'categories' => VehicleCategory::all(),
+            'services' => $this->serviceOptions(),
         ]);
     }
 
@@ -116,9 +123,15 @@ class VehicleController extends Controller
             (array) $request->input('remove_rc', []),
             $this->storeDocumentPhotos($request, 'rc_photos'),
         );
-        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'remove_insurance', 'remove_rc']);
+        $validated = Arr::except($validated, ['insurance_photos', 'rc_photos', 'remove_insurance', 'remove_rc', 'service_ids', 'services_selected']);
 
         $vehicle->update($validated);
+
+        // The marker the services field sends is what tells an empty pick from a
+        // form that never showed the field at all.
+        if ($request->boolean('services_selected')) {
+            $vehicle->services()->sync($this->chosenServiceIds($request));
+        }
 
         $this->storeGalleryImages($request, $vehicle);
 
@@ -187,8 +200,38 @@ class VehicleController extends Controller
             'remove_rc.*' => 'string',
             'images' => 'nullable|array',
             'images.*' => 'image|max:2048',
+            // The services this vehicle provides: any number of them.
+            'services_selected' => 'nullable|boolean',
+            'service_ids' => 'nullable|array',
+            'service_ids.*' => 'exists:service_types,id',
             'status' => 'required|string',
         ]);
+    }
+
+    /**
+     * The services a vehicle can be put on: everything still active, in the
+     * order they are listed everywhere else.
+     *
+     * @return Collection<int, ServiceType>
+     */
+    private function serviceOptions()
+    {
+        return ServiceType::where('status', 'Active')->get();
+    }
+
+    /**
+     * The services ticked on the form, as a clean list of ids.
+     *
+     * @return list<int>
+     */
+    private function chosenServiceIds(Request $request): array
+    {
+        return collect($request->input('service_ids', []))
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

@@ -37,6 +37,14 @@ class ServiceType extends Model
      * "associate": a service an admin added can still be handed to an
      * associate, in which case the admin stays the creator.
      */
+    /**
+     * The vehicles that provide this service.
+     */
+    public function vehicles()
+    {
+        return $this->belongsToMany(Vehicle::class, 'service_type_vehicle');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

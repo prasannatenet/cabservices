@@ -26,8 +26,8 @@ self.addEventListener('push', (event) => {
 
     event.waitUntil(self.registration.showNotification(title, {
         body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        icon: '/notification-icon.png',
+        badge: '/notification-icon.png',
         // Tagging by booking replaces an earlier toast for the same ride instead
         // of stacking them up when the driver answers more than once.
         tag: data.booking_id ? 'booking-' + data.booking_id : undefined,

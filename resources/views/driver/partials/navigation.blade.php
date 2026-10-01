@@ -12,7 +12,7 @@
                 </svg>
             </div>
             <span class="font-display font-bold text-xl tracking-tight text-gray-900 dark:text-white">
-                Driver Portal
+                {{ config('app.name') }}
             </span>
         </a>
         <button @click="sidebarOpen = false" class="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">

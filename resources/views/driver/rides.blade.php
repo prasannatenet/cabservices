@@ -73,7 +73,7 @@
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600 dark:text-primary-400">{{ $ride->booking_number }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                {{ optional($ride->pickupCity)->name ?? $ride->pickup_location }} &rarr; {{ optional($ride->dropCity)->name ?? $ride->drop_location }}
+                                {{ $ride->displayRoute() }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                 {{ \Illuminate\Support\Carbon::parse($ride->pickup_date)->format('d M, Y') }} at {{ \Illuminate\Support\Carbon::parse($ride->pickup_time)->format('h:i A') }}
@@ -93,7 +93,7 @@
                                 <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border
                                     @if($ride->status == \App\Enums\BookingStatus::TRIP_COMPLETED) bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50
                                     @elseif(in_array($ride->status, [\App\Enums\BookingStatus::TRIP_STARTED, \App\Enums\BookingStatus::DRIVER_ASSIGNED, \App\Enums\BookingStatus::CONFIRMED])) bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50
-                                    @elseif(in_array($ride->status, [\App\Enums\BookingStatus::REJECTED, \App\Enums\BookingStatus::CANCELLED])) bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50
+                                    @elseif(in_array($ride->status, [\App\Enums\BookingStatus::REJECTED, \App\Enums\BookingStatus::DRIVER_REJECTED, \App\Enums\BookingStatus::CANCELLED])) bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50
                                     @else bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/50 @endif">
                                     {{ $ride->status->value }}
                                 </span>

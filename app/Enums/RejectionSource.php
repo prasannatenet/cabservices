@@ -3,13 +3,12 @@
 namespace App\Enums;
 
 /**
- * Who is responsible for a booking sitting in the Rejected state.
+ * Who is responsible for a booking that was refused or called off.
  *
- * A booking becomes Rejected in two different ways: the admin rejects the
- * request outright, or the assigned driver refuses it (or never answers within
- * the six hour response window). Both share the same BookingStatus, so this
- * records which of the two happened and lets the admin screens label the ride
- * "Driver Rejected" instead of plain "Rejected".
+ * A booking can be turned down on either side: the admin rejects the request
+ * outright, or the assigned driver refuses it (or never answers within the six
+ * hour response window). Each of those is now a status of its own, so this only
+ * records who was responsible for the refusal, for the record.
  */
 enum RejectionSource: string
 {
@@ -17,13 +16,13 @@ enum RejectionSource: string
     case Admin = 'Admin';
 
     /**
-     * The label shown in the admin booking screens.
+     * The status a refusal from this source puts the booking into.
      */
-    public function label(): string
+    public function resultingStatus(): BookingStatus
     {
         return match ($this) {
-            self::Driver => 'Driver Rejected',
-            self::Admin => 'Rejected',
+            self::Driver => BookingStatus::DRIVER_REJECTED,
+            self::Admin => BookingStatus::REJECTED,
         };
     }
 }

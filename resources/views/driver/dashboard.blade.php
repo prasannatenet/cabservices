@@ -26,7 +26,7 @@
                             New ride waiting for your response &mdash; {{ $pending->booking?->booking_number }}
                         </p>
                         <p class="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
-                            {{ optional($pending->booking?->pickupCity)->name }} &rarr; {{ optional($pending->booking?->dropCity)->name }}
+                            {{ $pending->booking?->displayRoute() }}
                         </p>
                     </div>
                     <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100 whitespace-nowrap">
@@ -115,7 +115,7 @@
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600 dark:text-primary-400">{{ $booking->booking_number }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                    {{ optional($booking->pickupCity)->name }} &rarr; {{ optional($booking->dropCity)->name }}
+                                    {{ $booking->displayRoute() }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                     {{ \Illuminate\Support\Carbon::parse($booking->pickup_date)->format('d M, Y') }} at {{ \Illuminate\Support\Carbon::parse($booking->pickup_time)->format('h:i A') }}
@@ -180,7 +180,7 @@
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600 dark:text-primary-400">{{ $assignment->booking?->booking_number }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                    {{ optional($assignment->booking?->pickupCity)->name }} &rarr; {{ optional($assignment->booking?->dropCity)->name }}
+                                    {{ $assignment->booking?->displayRoute() }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                     {{ \Illuminate\Support\Carbon::parse($assignment->booking?->pickup_date)->format('d M, Y') }} at {{ \Illuminate\Support\Carbon::parse($assignment->booking?->pickup_time)->format('h:i A') }}

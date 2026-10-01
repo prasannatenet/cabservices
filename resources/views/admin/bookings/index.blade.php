@@ -83,7 +83,7 @@
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="font-medium">{{ optional($booking->pickupCity)->name }}</span>
                                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                                    <span class="font-medium">{{ optional($booking->dropCity)->name }}</span>
+                                    <span class="font-medium">{{ $booking->displayDropCity() }}</span>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1">{{ \Carbon\Carbon::parse($booking->pickup_date)->format('d M, Y') }} at {{ $booking->pickup_time }}</div>
                             </td>
@@ -91,7 +91,9 @@
                                 <x-associate-badge :record="$booking" />
                             </td>
                             <td class="whitespace-nowrap">
-                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border 
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border
+                                    {{-- A driver refusal is a status of its own now, so it gets its own colour
+                                         rather than borrowing the plain Rejected one. --}}
                                     @if($booking->isRejectedByDriver()) bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-900/50
                                     @elseif($booking->status === \App\Enums\BookingStatus::PENDING) bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900/50
                                     @elseif($booking->status === \App\Enums\BookingStatus::CONFIRMED) bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50

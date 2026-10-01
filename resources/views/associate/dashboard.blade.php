@@ -159,7 +159,7 @@
                                     <div class="flex items-center gap-2">
                                         <span class="font-medium">{{ optional($booking->pickupCity)->name }}</span>
                                         <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                                        <span class="font-medium">{{ optional($booking->dropCity)->name }}</span>
+                                        <span class="font-medium">{{ $booking->displayDropCity() }}</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">

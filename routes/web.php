@@ -38,6 +38,7 @@ use App\Http\Controllers\Associate\DriverController as AssociateDriverController
 use App\Http\Controllers\Associate\DriverLeaveController as AssociateDriverLeaveController;
 use App\Http\Controllers\Associate\ServiceTypeController as AssociateServiceTypeController;
 use App\Http\Controllers\Associate\VehicleController as AssociateVehicleController;
+use App\Http\Controllers\Customer\DashboardController as CustomerDashboardController;
 use App\Http\Controllers\Driver\DashboardController as DriverDashboardController;
 use App\Http\Controllers\Driver\ProfileController as DriverProfileController;
 use App\Http\Controllers\Driver\TripController as DriverTripController;
@@ -50,6 +51,14 @@ Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('ad
     // The list of finished rides with their distance and amount. It is declared
     // before the bookings resource so that "completed" is not read as a booking id.
     Route::get('bookings/completed', [CompletedTripController::class, 'index'])->name('bookings.completed');
+
+    // What may be done to a ride is decided by the ride itself, so the status is
+    // never picked from a list. Each of these is one action the booking allows
+    // right now, and each is refused when the booking has moved past it.
+    Route::post('bookings/{booking}/cancel', [AdminBookingController::class, 'cancel'])->name('bookings.cancel');
+    Route::post('bookings/{booking}/reject', [AdminBookingController::class, 'reject'])->name('bookings.reject');
+    Route::post('bookings/{booking}/complete', [AdminBookingController::class, 'complete'])->name('bookings.complete');
+
     Route::resource('bookings', AdminBookingController::class);
     Route::delete('vehicles/images/{image}', [VehicleController::class, 'destroyImage'])->name('vehicles.images.destroy');
     Route::resource('vehicles', VehicleController::class);
@@ -72,6 +81,8 @@ Route::middleware(['auth', 'role:admin', 'verified'])->prefix('admin')->name('ad
     Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
     Route::put('settings/mail', [SettingController::class, 'update'])->name('settings.update');
     Route::put('settings/push', [SettingController::class, 'updatePush'])->name('settings.push.update');
+    Route::put('settings/company', [SettingController::class, 'updateCompany'])->name('settings.company.update');
+    Route::put('settings/account', [SettingController::class, 'updateAccount'])->name('settings.account.update');
     Route::post('settings/mail/test', [SettingController::class, 'sendTestMail'])->name('settings.test-mail');
 
     Route::get('drivers/{driver}/leaves', [DriverLeaveController::class, 'index'])->name('drivers.leaves');
@@ -129,9 +140,22 @@ Route::middleware(['auth', 'role:associate', 'verified'])->prefix('associate')->
 
     Route::resource('service-types', AssociateServiceTypeController::class)->except(['show']);
 
+    // The same three actions the admin has, for the rides this associate owns.
+    Route::post('bookings/{booking}/cancel', [AssociateBookingController::class, 'cancel'])->name('bookings.cancel');
+    Route::post('bookings/{booking}/reject', [AssociateBookingController::class, 'reject'])->name('bookings.reject');
+    Route::post('bookings/{booking}/complete', [AssociateBookingController::class, 'complete'])->name('bookings.complete');
+
     Route::resource('bookings', AssociateBookingController::class)->only(['index', 'show', 'update']);
 
     Route::get('cities', [AssociateCityController::class, 'index'])->name('cities.index');
+});
+
+// The customer panel. He arrives here once his ride is confirmed, and he is
+// given an account along with it, so the routes sit behind the customer role and
+// every query is scoped to the rides booked under his own account.
+Route::middleware(['auth', 'role:customer', 'verified'])->prefix('customer')->name('customer.')->group(function () {
+    Route::get('/dashboard', [CustomerDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/rides/{booking}', [CustomerDashboardController::class, 'show'])->name('bookings.show');
 });
 
 // Desktop notifications. Both dispatchers answer rides: the admin for the whole

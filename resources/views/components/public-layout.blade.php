@@ -44,7 +44,7 @@
                                 </svg>
                             </div>
                             <span class="font-display font-bold text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
-                                CabServices
+                                {{ config('app.name') }}
                             </span>
                         </a>
                     </div>
@@ -74,7 +74,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                                 </svg>
                             </div>
-                            <span class="font-display font-bold text-xl text-gray-900 dark:text-white">CabServices</span>
+                            <span class="font-display font-bold text-xl text-gray-900 dark:text-white">{{ config('app.name') }}</span>
                         </a>
                         <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-sm">Premium cab booking services offering reliable, comfortable, and safe rides for all your travel needs.</p>
                     </div>
@@ -100,7 +100,7 @@
                     </div>
                 </div>
                 <div class="border-t border-gray-200 dark:border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center">
-                    <p class="text-gray-400 text-sm">© {{ date('Y') }} CabServices. All rights reserved.</p>
+                    <p class="text-gray-400 text-sm">© {{ date('Y') }} {{ config('app.name') }}. All rights reserved.</p>
                 </div>
             </div>
         </footer>
