@@ -68,17 +68,36 @@ class RejectionVisibilityTest extends TestCase
         ]);
     }
 
-    public function test_booking_moves_to_rejected_when_the_driver_refuses_it(): void
+    public function test_booking_moves_to_driver_rejected_when_the_driver_refuses_it(): void
     {
         $booking = $this->rejectedBooking('Vehicle is in the workshop');
 
-        $this->assertSame(BookingStatus::REJECTED, $booking->status);
+        // A driver's refusal is a status of its own, not a plain Rejected.
+        $this->assertSame(BookingStatus::DRIVER_REJECTED, $booking->status);
+        $this->assertSame('Driver Rejected', $booking->displayStatus());
+        $this->assertTrue($booking->isRejectedByDriver());
+        $this->assertFalse($booking->isRejectedByAdmin());
         $this->assertNull($booking->driver_id);
         $this->assertDatabaseHas('driver_assignments', [
             'booking_id' => $booking->id,
             'driver_id' => $this->driver->id,
             'rejection_reason' => 'Vehicle is in the workshop',
         ]);
+    }
+
+    public function test_an_admin_rejection_keeps_the_plain_rejected_status(): void
+    {
+        $booking = $this->pendingBooking();
+
+        app(BookingService::class)->rejectBooking($booking, $this->admin->id, 'Customer cancelled the trip');
+
+        $booking->refresh();
+
+        // The two refusals are told apart by the status itself.
+        $this->assertSame(BookingStatus::REJECTED, $booking->status);
+        $this->assertSame('Rejected', $booking->displayStatus());
+        $this->assertTrue($booking->isRejectedByAdmin());
+        $this->assertFalse($booking->isRejectedByDriver());
     }
 
     public function test_driver_dashboard_lists_the_ride_the_driver_refused(): void
@@ -164,7 +183,7 @@ class RejectionVisibilityTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.bookings.index'));
 
         $response->assertStatus(200);
-        $response->assertSee(Booking::DRIVER_REJECTED_LABEL);
+        $response->assertSee(BookingStatus::DRIVER_REJECTED->value);
     }
 
     public function test_admin_can_filter_the_booking_list_by_driver_rejections(): void
@@ -174,13 +193,31 @@ class RejectionVisibilityTest extends TestCase
 
         app(BookingService::class)->rejectBooking($adminRejected, $this->admin->id, 'Customer cancelled the trip');
 
+        // Driver Rejected is a real status, so the plain status filter is all
+        // that is needed to narrow the list down to the driver's refusals.
         $response = $this->actingAs($this->admin)->get(route('admin.bookings.index', [
-            'status' => Booking::DRIVER_REJECTED_LABEL,
+            'status' => BookingStatus::DRIVER_REJECTED->value,
         ]));
 
         $response->assertStatus(200);
         $response->assertSee($driverRejected->booking_number);
         $response->assertDontSee($adminRejected->booking_number);
+    }
+
+    public function test_filtering_by_rejected_keeps_the_driver_refusals_out(): void
+    {
+        $driverRejected = $this->rejectedBooking('Vehicle is in the workshop');
+        $adminRejected = $this->pendingBooking();
+
+        app(BookingService::class)->rejectBooking($adminRejected, $this->admin->id, 'Customer cancelled the trip');
+
+        $response = $this->actingAs($this->admin)->get(route('admin.bookings.index', [
+            'status' => BookingStatus::REJECTED->value,
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertSee($adminRejected->booking_number);
+        $response->assertDontSee($driverRejected->booking_number);
     }
 
     public function test_driver_activity_overview_counts_the_refused_ride_against_the_driver(): void

@@ -101,6 +101,7 @@ class BookingPriceDisplayTest extends TestCase
         return [
             'pickup_city_id' => $city->id,
             'drop_city_id' => $city->id,
+            'drop_city' => $city->name,
             'pickup_location' => 'Airport',
             'drop_location' => 'Hotel',
             'pickup_date' => now()->addDays(2)->format('Y-m-d'),

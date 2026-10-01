@@ -27,6 +27,7 @@ class BookingServiceTest extends TestCase
         $response = $this->post(route('booking.search'), [
             'pickup_city_id' => $city->id,
             'drop_city_id' => $city->id,
+            'drop_city' => $city->name,
             'pickup_location' => 'Airport',
             'drop_location' => 'Hotel',
             'pickup_date' => now()->addDays(2)->format('Y-m-d'),
@@ -67,5 +68,25 @@ class BookingServiceTest extends TestCase
         $response->assertViewHas('vehicle', fn ($viewVehicle) => $viewVehicle->is($vehicle));
         $response->assertSee('Complete Your Booking');
         $response->assertSee($vehicle->name);
+    }
+
+    /**
+     * The booking page draws the summary it is handed, so a visit with no
+     * summary at all - a bare link or a bookmark - has nothing to render and is
+     * sent back to the search instead of blowing up on the missing fields.
+     */
+    public function test_a_bare_visit_to_the_booking_page_goes_back_to_the_search(): void
+    {
+        $this->get(route('booking.create'))
+            ->assertRedirect(route('home'));
+    }
+
+    public function test_a_booking_page_missing_part_of_the_search_goes_back_to_the_search(): void
+    {
+        $this->get(route('booking.create', [
+            'pickup_location' => 'Airport',
+            // The rest of the summary never made it, so there is still nothing
+            // complete to show him.
+        ]))->assertRedirect(route('home'));
     }
 }

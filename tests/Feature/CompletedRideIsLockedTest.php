@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\BookingStatus;
+use App\Enums\RejectionSource;
 use App\Models\Booking;
 use App\Models\City;
 use App\Models\Driver;
@@ -14,10 +15,10 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * A completed trip is the record of what actually happened: the odometer
+ * A finished ride is the record of what actually happened: the odometer
  * readings, the bill worked out from them, the driver who drove it. Once it has
  * ended nobody may change any of it, so the figures cannot be quietly rewritten
- * after the fact.
+ * after the fact. The same is true of a cancelled one: nothing follows it either.
  */
 class CompletedRideIsLockedTest extends TestCase
 {
@@ -100,6 +101,17 @@ class CompletedRideIsLockedTest extends TestCase
         $this->assertSame($this->ownDriver->id, (int) $ride->driver_id);
     }
 
+    public function test_the_admin_cannot_cancel_a_finished_trip(): void
+    {
+        $ride = $this->completedRide();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.bookings.cancel', $ride))
+            ->assertSessionHas('error');
+
+        $this->assertSame(BookingStatus::TRIP_COMPLETED, $ride->fresh()->status);
+    }
+
     public function test_the_admin_cannot_change_the_status_of_a_finished_trip(): void
     {
         $ride = $this->completedRide();
@@ -131,7 +143,7 @@ class CompletedRideIsLockedTest extends TestCase
             ->get(route('admin.bookings.show', $ride))
             ->assertOk()
             ->assertSee('read only')
-            ->assertDontSee('Save Changes', false);
+            ->assertDontSee('Save Vehicle &amp; Driver', false);
     }
 
     public function test_the_service_refuses_to_reopen_a_finished_trip(): void
@@ -161,9 +173,9 @@ class CompletedRideIsLockedTest extends TestCase
     {
         $ride = $this->completedRide(['associate_id' => $this->associate->id]);
 
-        $this->actingAs($this->associate)->put(route('associate.bookings.update', $ride), [
-            'status' => BookingStatus::CANCELLED->value,
-        ])->assertSessionHas('error');
+        $this->actingAs($this->associate)
+            ->post(route('associate.bookings.cancel', $ride))
+            ->assertSessionHas('error');
 
         $this->assertEquals(BookingStatus::TRIP_COMPLETED, $ride->fresh()->status);
 
@@ -171,7 +183,7 @@ class CompletedRideIsLockedTest extends TestCase
             ->get(route('associate.bookings.show', $ride))
             ->assertOk()
             ->assertSee('read only')
-            ->assertDontSee('Save Changes', false);
+            ->assertDontSee('Save Vehicle &amp; Driver', false);
     }
 
     public function test_a_rejected_ride_is_not_locked_so_the_admin_can_reassign_it(): void
@@ -186,12 +198,46 @@ class CompletedRideIsLockedTest extends TestCase
 
         $this->assertFalse($ride->isLocked());
 
+        // The ride already carries this driver, so the ride is reassigned to a
+        // second one to show a refused ride can be put back in play.
         $this->actingAs($this->admin)->put(route('admin.bookings.update', $ride), [
-            'status' => BookingStatus::DRIVER_ASSIGNED->value,
-            'driver_id' => $this->ownDriver->id,
+            'driver_id' => Driver::factory()->create([
+                'current_city_id' => $this->city->id,
+                'associate_id' => null,
+            ])->id,
         ])->assertSessionHasNoErrors();
 
-        $this->assertEquals(BookingStatus::DRIVER_ASSIGNED, $ride->fresh()->status);
+        // Assigning a driver to a rejected ride puts it back in play.
+        $this->assertSame(BookingStatus::DRIVER_ASSIGNED, $ride->fresh()->status);
+    }
+
+    public function test_a_driver_rejected_ride_is_reopened_by_assigning_another_driver(): void
+    {
+        $ride = $this->completedRide([
+            'status' => BookingStatus::DRIVER_REJECTED->value,
+            'rejection_source' => RejectionSource::Driver,
+            'rejection_reason' => 'My vehicle is in the workshop',
+            'trip_ended_at' => null,
+            'trip_started_at' => null,
+        ]);
+
+        $this->assertFalse($ride->isLocked());
+
+        $this->actingAs($this->admin)->put(route('admin.bookings.update', $ride), [
+            'driver_id' => Driver::factory()->create([
+                'current_city_id' => $this->city->id,
+                'associate_id' => null,
+            ])->id,
+        ])->assertSessionHasNoErrors();
+
+        $ride->refresh();
+
+        $this->assertSame(BookingStatus::DRIVER_ASSIGNED, $ride->status);
+
+        // The old refusal no longer describes the ride, so it is cleared rather
+        // than left contradicting the status it was sitting next to.
+        $this->assertNull($ride->rejection_reason);
+        $this->assertNull($ride->rejection_source);
     }
 
     public function test_a_running_ride_is_still_editable(): void
@@ -208,6 +254,24 @@ class CompletedRideIsLockedTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.bookings.show', $ride))
             ->assertOk()
-            ->assertSee('Save Changes', false);
+            ->assertSee('Save Vehicle &amp; Driver', false);
+    }
+
+    public function test_a_cancelled_ride_is_frozen(): void
+    {
+        $ride = $this->completedRide([
+            'status' => BookingStatus::CANCELLED->value,
+            'trip_ended_at' => null,
+            'trip_started_at' => null,
+        ]);
+
+        // Nothing follows a cancelled ride either, so it is closed for good.
+        $this->assertTrue($ride->isLocked());
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.bookings.cancel', $ride))
+            ->assertSessionHas('error');
+
+        $this->assertSame(BookingStatus::CANCELLED, $ride->fresh()->status);
     }
 }

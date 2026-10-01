@@ -67,8 +67,8 @@ class BookingMailNotificationTest extends TestCase
 
         app(BookingService::class)->createBookingRequest($this->bookingData());
 
-        Mail::assertQueued(NewBookingRequest::class, fn (NewBookingRequest $mail): bool => $mail->hasTo('ops@example.com'));
-        Mail::assertQueued(BookingRequestAcknowledgement::class, fn (BookingRequestAcknowledgement $mail): bool => $mail->hasTo('customer@example.com'));
+        Mail::assertSent(NewBookingRequest::class, fn (NewBookingRequest $mail): bool => $mail->hasTo('ops@example.com'));
+        Mail::assertSent(BookingRequestAcknowledgement::class, fn (BookingRequestAcknowledgement $mail): bool => $mail->hasTo('customer@example.com'));
     }
 
     public function test_booking_request_falls_back_to_admin_accounts_when_no_recipient_configured(): void
@@ -78,7 +78,7 @@ class BookingMailNotificationTest extends TestCase
 
         app(BookingService::class)->createBookingRequest($this->bookingData());
 
-        Mail::assertQueued(NewBookingRequest::class, fn (NewBookingRequest $mail): bool => $mail->hasTo($admin->email));
+        Mail::assertSent(NewBookingRequest::class, fn (NewBookingRequest $mail): bool => $mail->hasTo($admin->email));
     }
 
     public function test_customer_is_not_emailed_when_no_email_was_given(): void
@@ -88,8 +88,8 @@ class BookingMailNotificationTest extends TestCase
 
         app(BookingService::class)->createBookingRequest($this->bookingData(['customer_email' => null]));
 
-        Mail::assertQueued(NewBookingRequest::class);
-        Mail::assertNotQueued(BookingRequestAcknowledgement::class);
+        Mail::assertSent(NewBookingRequest::class);
+        Mail::assertNotSent(BookingRequestAcknowledgement::class);
     }
 
     public function test_assigning_a_driver_emails_the_customer_and_the_driver(): void
@@ -108,8 +108,8 @@ class BookingMailNotificationTest extends TestCase
 
         app(BookingService::class)->assignDriver($booking, $driver->id, $admin->id);
 
-        Mail::assertQueued(DriverAssigned::class, fn (DriverAssigned $mail): bool => $mail->hasTo('customer@example.com'));
-        Mail::assertQueued(DriverAssignmentNotice::class, fn (DriverAssignmentNotice $mail): bool => $mail->hasTo('driver@example.com'));
+        Mail::assertSent(DriverAssigned::class, fn (DriverAssigned $mail): bool => $mail->hasTo('customer@example.com'));
+        Mail::assertSent(DriverAssignmentNotice::class, fn (DriverAssignmentNotice $mail): bool => $mail->hasTo('driver@example.com'));
     }
 
     public function test_confirming_a_booking_emails_the_customer_and_the_driver(): void
@@ -130,8 +130,8 @@ class BookingMailNotificationTest extends TestCase
 
         app(BookingService::class)->confirmBooking($booking, $driver->id);
 
-        Mail::assertQueued(DriverAssigned::class, fn (DriverAssigned $mail): bool => $mail->hasTo('customer@example.com'));
-        Mail::assertQueued(DriverAssignmentNotice::class, fn (DriverAssignmentNotice $mail): bool => $mail->hasTo('driver@example.com'));
+        Mail::assertSent(DriverAssigned::class, fn (DriverAssigned $mail): bool => $mail->hasTo('customer@example.com'));
+        Mail::assertSent(DriverAssignmentNotice::class, fn (DriverAssignmentNotice $mail): bool => $mail->hasTo('driver@example.com'));
     }
 
     public function test_no_mail_is_sent_when_notifications_are_disabled(): void
@@ -142,7 +142,7 @@ class BookingMailNotificationTest extends TestCase
 
         app(BookingService::class)->createBookingRequest($this->bookingData());
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 
     public function test_booking_still_succeeds_when_mail_delivery_fails(): void
