@@ -99,6 +99,15 @@ class AssignmentResponseService
 
         foreach ($expired as $assignment) {
             try {
+                // A ride that has moved on to another driver is left alone: the
+                // assignment is superseded when the swap happens, so this only
+                // catches a row the swap somehow missed. Letting it through
+                // would reject somebody else's ride over an answer to one that
+                // is no longer his.
+                if ((int) $assignment->booking?->driver_id !== $assignment->driver_id) {
+                    continue;
+                }
+
                 $this->recordRejection(
                     $assignment,
                     AssignmentResponseStatus::AutoRejected,
@@ -179,6 +188,15 @@ class AssignmentResponseService
      */
     protected function guardStillOpen(DriverAssignment $assignment): void
     {
+        // The stored row is read again rather than trusting the instance, so an
+        // assignment held in memory from before a reassignment cannot be
+        // answered after the ride has moved to another driver.
+        $assignment->refresh();
+
+        if ($assignment->wasSuperseded()) {
+            throw new \Exception('This ride has been given to another driver.');
+        }
+
         if (! $assignment->response_status->isPending()) {
             throw new \Exception('You have already responded to this ride.');
         }

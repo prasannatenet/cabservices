@@ -84,6 +84,27 @@ class DriverAssignment extends Model
     }
 
     /**
+     * Assignments the ride was taken off, i.e. the ones a dispatcher took away
+     * by giving the ride to another driver.
+     */
+    public function scopeSuperseded(Builder $query): Builder
+    {
+        return $query->where('response_status', AssignmentResponseStatus::Superseded->value);
+    }
+
+    /**
+     * Assignments that count against the driver they were made for.
+     *
+     * Everything except the superseded ones: a ride taken off a driver before he
+     * drove it was never his, so it belongs in neither his ride counts nor his
+     * rejection count. This is the scope every count on the driver screens reads.
+     */
+    public function scopeCounted(Builder $query): Builder
+    {
+        return $query->where('response_status', '!=', AssignmentResponseStatus::Superseded->value);
+    }
+
+    /**
      * Response statuses that mean the driver side turned the ride down.
      *
      * @return list<string>
@@ -152,6 +173,24 @@ class DriverAssignment extends Model
     }
 
     /**
+     * Take this assignment off the driver because the ride was given to somebody
+     * else, whether he had answered it or not.
+     *
+     * The row is kept rather than deleted so the trail still shows the ride was
+     * once his, but it is closed without a rejection reason: he never refused
+     * anything, and nothing here should ever read as though he did.
+     */
+    public function supersede(): void
+    {
+        $this->forceFill([
+            'response_status' => AssignmentResponseStatus::Superseded,
+            'responded_at' => now(),
+            'rejection_reason' => null,
+            'status' => 'Cancelled',
+        ])->save();
+    }
+
+    /**
      * Whether the driver personally refused the ride, as opposed to never
      * answering it.
      */
@@ -174,6 +213,15 @@ class DriverAssignment extends Model
     public function rejectionLabel(): string
     {
         return $this->wasAutoRejected() ? 'No answer in time' : 'Rejected';
+    }
+
+    /**
+     * Whether the ride was taken off this driver and given to somebody else,
+     * which is neither an acceptance nor a refusal of his.
+     */
+    public function wasSuperseded(): bool
+    {
+        return $this->response_status->isSuperseded();
     }
 
     public function booking()

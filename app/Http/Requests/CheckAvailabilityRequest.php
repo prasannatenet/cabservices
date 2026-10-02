@@ -27,7 +27,10 @@ class CheckAvailabilityRequest extends FormRequest
             'drop_date' => 'nullable|date|after_or_equal:pickup_date',
             'drop_time' => 'nullable|date_format:H:i',
             'passengers' => 'nullable|integer|min:1',
-            'service_type_id' => 'nullable|exists:service_types,id',
+            // The service decides which fleet is offered, so it is asked for up front
+            // rather than assumed: a vehicle is only ever offered for a service it
+            // has been put on.
+            'service_type_id' => 'required|exists:service_types,id',
             'vehicle_preference' => 'nullable|string|max:255',
         ];
     }

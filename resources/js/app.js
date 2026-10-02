@@ -197,6 +197,189 @@ Alpine.data('servicePicker', (services = [], pickedIds = []) => ({
     },
 }));
 
+Alpine.data('dateRangePicker', ({ from = '', to = '', min = '' } = {}) => ({
+    open: false,
+    from,
+    to,
+    min,
+    // The month on screen while the calendar is open, as a year/month pair.
+    viewYear: 0,
+    viewMonth: 0,
+    // The first day picked, kept while the second end of the range is still
+    // being chosen, so the panel can highlight the days in between.
+    pendingFrom: '',
+    pendingTo: '',
+
+    init() {
+        // Open on the month the range starts in, so a range already chosen is
+        // visible rather than hidden behind whatever month happens to be now.
+        const anchor = this.to || this.from || this.min;
+        const date = this.parse(anchor) || new Date();
+
+        this.viewYear = date.getFullYear();
+        this.viewMonth = date.getMonth();
+        this.pendingFrom = this.from;
+        this.pendingTo = this.to;
+    },
+
+    get monthLabel() {
+        return new Date(this.viewYear, this.viewMonth, 1)
+            .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    },
+
+    /**
+     * The six weeks of the month on screen, padded with the empty days of the
+     * months either side so every row is a full Monday-to-Sunday week.
+     */
+    get weeks() {
+        const first = new Date(this.viewYear, this.viewMonth, 1);
+        // getDay() counts Sunday as 0, so Monday-first weeks need it shifted.
+        const leading = (first.getDay() + 6) % 7;
+        const start = new Date(this.viewYear, this.viewMonth, 1 - leading);
+
+        return Array.from({ length: 6 }, (_, week) =>
+            Array.from({ length: 7 }, (_, day) => {
+                const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + week * 7 + day);
+
+                return {
+                    iso: this.iso(date),
+                    day: date.getDate(),
+                    inMonth: date.getMonth() === this.viewMonth,
+                    disabled: this.min !== '' && this.iso(date) < this.min,
+                };
+            })
+        );
+    },
+
+    get hasRange() {
+        return this.pendingFrom !== '' && this.pendingTo !== '';
+    },
+
+    get triggerLabel() {
+        if (!this.hasRange) {
+            return 'Select a range';
+        }
+
+        // A range inside a single month reads better without repeating the month.
+        const from = this.parse(this.pendingFrom);
+        const to = this.parse(this.pendingTo);
+
+        if (from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth()) {
+            return `${from.getDate()} ${this.shortMonth(from)} – ${to.getDate()} ${to.getFullYear()}`;
+        }
+
+        return `${this.format(this.pendingFrom)} – ${this.format(this.pendingTo)}`;
+    },
+
+    toggle() {
+        this.open = !this.open;
+
+        if (this.open) {
+            const anchor = this.parse(this.pendingFrom || this.pendingTo || this.min) || new Date();
+            this.viewYear = anchor.getFullYear();
+            this.viewMonth = anchor.getMonth();
+        }
+    },
+
+    /**
+     * Pick a day. The first pick starts a range and the second closes it; a
+     * second pick before the first would only ever make the range run backwards,
+     * so it moves the start instead.
+     */
+    select(iso, disabled) {
+        if (disabled) {
+            return;
+        }
+
+        if (this.pendingFrom === '' || this.hasRange) {
+            this.pendingFrom = iso;
+            this.pendingTo = '';
+        } else if (iso < this.pendingFrom) {
+            this.pendingFrom = iso;
+        } else {
+            this.pendingTo = iso;
+        }
+    },
+
+    inRange(iso) {
+        return this.hasRange && iso > this.pendingFrom && iso < this.pendingTo;
+    },
+
+    isEdge(iso) {
+        return iso === this.pendingFrom || (this.hasRange && iso === this.pendingTo);
+    },
+
+    /**
+     * Pick the whole month on screen, which is the quickest way to read a month
+     * at a time without reaching for the presets.
+     */
+    selectMonth() {
+        const last = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
+        const first = this.iso(new Date(this.viewYear, this.viewMonth, 1));
+        const lastIso = this.iso(new Date(this.viewYear, this.viewMonth, last));
+
+        this.pendingFrom = first;
+        this.pendingTo = lastIso;
+    },
+
+    clear() {
+        this.pendingFrom = '';
+        this.pendingTo = '';
+    },
+
+    /**
+     * Close the panel and send the chosen range. A range with only its first
+     * day picked counts as that one day, so a single click still reports.
+     */
+    apply() {
+        this.from = this.pendingFrom;
+        this.to = this.hasRange ? this.pendingTo : this.pendingFrom;
+        this.open = false;
+
+        this.$nextTick(() => this.$el.closest('form')?.requestSubmit());
+    },
+
+    previousMonth() {
+        const date = new Date(this.viewYear, this.viewMonth - 1, 1);
+        this.viewYear = date.getFullYear();
+        this.viewMonth = date.getMonth();
+    },
+
+    nextMonth() {
+        const date = new Date(this.viewYear, this.viewMonth + 1, 1);
+        this.viewYear = date.getFullYear();
+        this.viewMonth = date.getMonth();
+    },
+
+    /** Read a yyyy-mm-dd as a local date rather than UTC, or the day shifts. */
+    parse(iso) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(iso ?? '')) {
+            return null;
+        }
+
+        const [year, month, day] = iso.split('-').map(Number);
+
+        return new Date(year, month - 1, day);
+    },
+
+    iso(date) {
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${date.getFullYear()}-${month}-${day}`;
+    },
+
+    format(iso) {
+        const date = this.parse(iso);
+
+        return date ? `${date.getDate()} ${this.shortMonth(date)} ${date.getFullYear()}` : '';
+    },
+
+    shortMonth(date) {
+        return date.toLocaleDateString('en-GB', { month: 'short' });
+    },
+}));
+
 Alpine.start();
 
 /**

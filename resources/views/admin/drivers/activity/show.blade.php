@@ -58,6 +58,31 @@
             </div>
     </div>
 
+    {{-- What the driver has earned over the rides he finished, from his own per
+         day rate. This is his pay, not the price the customer was billed: the two
+         come off different rate cards and the admin settles this one. Null for a
+         driver who is not paid per day, since there is then no rate to work from. --}}
+    @if($earnings)
+        <div class="{{ $card }}">
+            <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+                <div>
+                    <p class="{{ $label }}">Total Earnings</p>
+                    <p class="mt-1 text-3xl font-display font-bold text-gray-900 dark:text-white">
+                        {{ number_format($earnings['total'], 2) }}
+                    </p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Across {{ $earnings['days'] }} billed {{ \Illuminate\Support\Str::plural('day', $earnings['days']) }}
+                        at {{ number_format($earnings['rate'], 2) }} a day.
+                    </p>
+                </div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                    <span class="block">Driver pay, over {{ $summary['completed'] }} finished {{ \Illuminate\Support\Str::plural('ride', $summary['completed']) }}.</span>
+                    <span class="block mt-1 text-xs text-gray-400 dark:text-gray-500">The billed trip price is on the completed rides report.</span>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Completed rides -->
     <div class="{{ $panel }}">
             <div class="admin-card-header">

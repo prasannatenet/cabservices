@@ -49,7 +49,7 @@
             <div class="admin-card-header">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Rides Per Driver</h3>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Assigned counts every ride handed to the driver. A refused ride stays counted here because the ride is freed from him again.
+                    Assigned counts every ride handed to the driver that he still holds. A ride given to another driver drops out of his count, whether he had answered it or not, because it was never his to drive.
                 </p>
             </div>
 

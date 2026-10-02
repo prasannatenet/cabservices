@@ -48,6 +48,12 @@ class AvailabilityService
      * finished a Jaipur -> Udaipur trip becomes available from Udaipur,
      * not Jaipur, from the drop date onwards.
      *
+     * Only the vehicles that actually provide the chosen service are offered,
+     * so a customer asking for one service is never shown a fleet that cannot
+     * run it. A vehicle the admin has not put on any service yet is left out
+     * too: it has not been offered for anything, so offering it here would
+     * promise a service nobody has said it provides.
+     *
      * @param  int  $pickupCityId
      * @param  string|\DateTimeInterface  $pickupDate
      * @param  string  $pickupTime
@@ -125,7 +131,16 @@ class AvailabilityService
         $baseQuery = fn () => Vehicle::with(['city', 'category', 'images'])
             ->where('status', VehicleStatus::AVAILABLE->value)
             ->where('seating_capacity', '>=', $passengers)
-            ->whereNotIn('id', array_unique($busyVehicleIds));
+            ->whereNotIn('id', array_unique($busyVehicleIds))
+            // The fleet is narrowed to the vehicles that provide the service the
+            // customer asked for. This sits in the shared base query so it holds
+            // for the nearby-city fallback below as well, otherwise a search that
+            // found nothing locally would offer every nearby vehicle whatever
+            // service it runs.
+            ->when($serviceTypeId, fn ($query) => $query->whereHas(
+                'services',
+                fn ($service) => $service->where('service_types.id', $serviceTypeId)
+            ));
 
         // 4. Vehicles located at the pickup city: still based there, or
         //    relocated there by their latest ended trip.

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AssignmentResponseStatus;
 use App\Enums\BookingStatus;
 use App\Enums\RejectionSource;
 use App\Mail\RideTrackingLinkMail;
@@ -10,6 +11,7 @@ use App\Models\BookingStatusHistory;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverAssignment;
+use App\Models\ServiceType;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +47,7 @@ class BookingService
     public function createBookingRequest(array $data)
     {
         $data = $this->settleTripCities($data);
+        $this->ensureVehicleRunsService($data);
 
         $booking = DB::transaction(function () use ($data) {
             $bookingNumber = 'BKG-'.strtoupper(Str::random(8));
@@ -151,6 +154,12 @@ class BookingService
             // Swapping the driver hands the previous one back before the new one
             // is taken on, so nobody is left marked busy for a ride he is not on.
             $this->fleet->release($booking);
+
+            // A ride given to somebody else was never the previous driver's, so
+            // his assignment is closed off here whether he had answered it or
+            // was still sitting on it. It stops counting against him and stops
+            // his answer from touching a ride he is no longer on.
+            $this->supersedeAssignments($booking);
 
             $booking = $this->statuses->transition(
                 $booking,
@@ -493,6 +502,58 @@ class BookingService
         }
 
         return City::find($cityId);
+    }
+
+    /**
+     * Take every open assignment on this ride off the driver it was made for,
+     * because the ride is being given to somebody else.
+     *
+     * Only assignments still in play are closed: one the driver already refused
+     * stays a refusal on his record, because that happened before the swap and
+     * is a real thing he did. One he accepted, or never answered at all, is
+     * superseded instead, so the ride stops counting against him, drops off his
+     * pending list, and his late answer cannot reach a ride he is no longer on.
+     */
+    protected function supersedeAssignments(Booking $booking): void
+    {
+        $booking->driverAssignments()
+            ->whereIn('response_status', [
+                AssignmentResponseStatus::Pending->value,
+                AssignmentResponseStatus::Accepted->value,
+            ])
+            ->get()
+            ->each(fn (DriverAssignment $assignment) => $assignment->supersede());
+    }
+
+    /**
+     * Guard: the booked vehicle has to be one that runs the service that was
+     * chosen. The results page only offers those vehicles, so this repeats the
+     * rule server-side rather than trusting the form: a stale or hand-written
+     * submission cannot book a fleet against a service it does not provide.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws \Exception
+     */
+    protected function ensureVehicleRunsService(array $data): void
+    {
+        if (empty($data['vehicle_id']) || empty($data['service_type_id'])) {
+            return;
+        }
+
+        $vehicle = Vehicle::find($data['vehicle_id']);
+
+        if (! $vehicle || $vehicle->services()->whereKey($data['service_type_id'])->exists()) {
+            return;
+        }
+
+        $service = ServiceType::find($data['service_type_id']);
+
+        throw new \Exception(sprintf(
+            'The %s does not provide %s. Please choose another cab or a different service.',
+            $vehicle->name,
+            $service?->name ?? 'the service you picked',
+        ));
     }
 
     /**

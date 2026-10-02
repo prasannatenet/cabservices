@@ -41,7 +41,7 @@
                                     <option value="{{ $city->name }}">{{ $city->name }}</option>
                                 @endforeach
                             </datalist>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Do not see your city? Type it - we still take the booking.</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Do not see your city? Write it.</p>
                             @error('drop_city') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
 
@@ -68,8 +68,21 @@
                             @error('drop_time') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
 
+                        <!-- Service Type: decides which fleet is offered -->
+                        <div class="lg:col-span-2">
+                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Service Type</label>
+                            <select name="service_type_id" required class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
+                                <option value="">Select a service</option>
+                                @foreach($serviceTypes as $service)
+                                    <option value="{{ $service->id }}" {{ (string) old('service_type_id') === (string) $service->id ? 'selected' : '' }}>{{ $service->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('service_type_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            {{-- <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Only the cabs that run the service you pick are shown.</p> --}}
+                        </div>
+
                         <!-- Vehicle Preference -->
-                        <div class="lg:col-span-4">
+                        <div class="lg:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vehicle Preference (Optional)</label>
                             <select name="vehicle_preference" class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
                                 <option value="">Any Vehicle Type</option>

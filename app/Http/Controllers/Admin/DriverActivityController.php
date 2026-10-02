@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\DriverAssignment;
+use App\Services\TripFareCalculator;
 use Illuminate\Http\Request;
 
 /**
@@ -52,7 +53,7 @@ class DriverActivityController extends Controller
 
         $drivers = Driver::query()
             ->with('currentCity')
-            ->withCount('driverAssignments as assigned_count')
+            ->withCount(['driverAssignments as assigned_count' => fn ($query) => $query->counted()])
             ->withCount(['driverAssignments as awaiting_count' => fn ($query) => $query->awaitingResponse()])
             ->withCount(['driverAssignments as rejected_count' => fn ($query) => $query->refused()])
             ->withCount(['bookings as ongoing_count' => fn ($query) => $query->ongoing()])
@@ -81,7 +82,7 @@ class DriverActivityController extends Controller
             'direction' => $direction,
             'totals' => [
                 'drivers' => Driver::count(),
-                'assigned' => DriverAssignment::count(),
+                'assigned' => DriverAssignment::counted()->count(),
                 'ongoing' => Booking::ongoing()->count(),
                 'completed' => Booking::completed()->count(),
                 'rejected' => DriverAssignment::refused()->count(),
@@ -97,12 +98,20 @@ class DriverActivityController extends Controller
         $driver->load('currentCity');
 
         $summary = [
-            'assigned' => $driver->driverAssignments()->count(),
+            'assigned' => $driver->driverAssignments()->counted()->count(),
             'awaiting' => $driver->driverAssignments()->awaitingResponse()->count(),
             'ongoing' => Booking::where('driver_id', $driver->id)->ongoing()->count(),
             'completed' => Booking::where('driver_id', $driver->id)->completed()->count(),
             'rejected' => $driver->driverAssignments()->refused()->count(),
         ];
+
+        // What this driver has earned, from his own per day rate over the rides
+        // he finished. This is the driver's pay and not the price the customer
+        // was billed: the two are worked out from different rate cards, and only
+        // the first one is the admin's to settle. It is null for a driver who is
+        // not paid per day or has no daily rate on record, because then there is
+        // no figure of his own to add up.
+        $earnings = $this->earnings($driver);
 
         $completed = Booking::with(['pickupCity', 'dropCity', 'vehicle'])
             ->where('driver_id', $driver->id)
@@ -124,6 +133,36 @@ class DriverActivityController extends Controller
             ->paginate(self::PER_PAGE, ['*'], 'rejected_page')
             ->withQueryString();
 
-        return view('admin.drivers.activity.show', compact('driver', 'summary', 'completed', 'ongoing', 'rejected'));
+        return view('admin.drivers.activity.show', compact('driver', 'summary', 'completed', 'ongoing', 'rejected', 'earnings'));
+    }
+
+    /**
+     * What this driver has earned over the rides he finished.
+     *
+     * Read from the driver's own per day rate, so the figure here is the same one
+     * he is shown on his own dashboard rather than a second, different answer.
+     * The days are counted the same way the hire is billed, so the two multiply
+     * out to the total and the admin can see what it came from.
+     *
+     * Null when the driver is not paid per day or carries no daily rate, because
+     * then nothing of his own can be added up and showing 0.00 would read as
+     * "this driver earned nothing" rather than "there is no rate to work from".
+     *
+     * @return array{total: float, days: int, rate: float}|null
+     */
+    private function earnings(Driver $driver): ?array
+    {
+        if (! $driver->isPaidPerDay() || $driver->per_day_salary === null) {
+            return null;
+        }
+
+        $calculator = app(TripFareCalculator::class);
+        $rides = Booking::where('driver_id', $driver->id)->completed()->get();
+
+        return [
+            'total' => $driver->earningsAcross($rides),
+            'days' => $rides->sum(fn (Booking $booking) => $calculator->billedDays($booking)),
+            'rate' => (float) $driver->per_day_salary,
+        ];
     }
 }

@@ -31,12 +31,10 @@ class BookingController extends Controller
         $matchedDropCity = $cityResolver->resolve($dropCityLabel);
         $dropCity = $matchedDropCity ?? $pickupCity;
 
-        $serviceTypeId = $request->input('service_type_id') ?? $this->defaultServiceTypeId();
-        if ($serviceTypeId === null) {
-            return back()->withInput()->withErrors([
-                'service_type_id' => 'No service type is available to book right now. Please contact us.',
-            ]);
-        }
+        // The service was chosen on the form and validated as required, so there is
+        // no default to fall back on: a search without one is sent back by the
+        // form request before it ever reaches this method.
+        $serviceTypeId = (int) $request->input('service_type_id');
 
         if (! $pickupCity instanceof City || ! $dropCity instanceof City) {
             return back()->withInput()->withErrors([
