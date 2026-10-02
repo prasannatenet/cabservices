@@ -306,6 +306,7 @@
                             <th scope="col" class="text-left">Pickup</th>
                             <th scope="col" class="text-left">Handled By</th>
                             <th scope="col" class="text-left">Status</th>
+                            <th scope="col" class="text-left">Tracking</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60">
@@ -341,10 +342,20 @@
                                     {{ $booking->displayStatus() }}
                                 </span>
                             </td>
+                            <td class="whitespace-nowrap">
+                                @if($booking->tracking_id && $booking->status === \App\Enums\BookingStatus::TRIP_STARTED)
+                                    <a href="{{ route('tracking.show', $booking->tracking_id) }}" target="_blank" rel="noopener"
+                                       class="inline-flex items-center gap-1 font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
+                                        Track &rarr;
+                                    </a>
+                                @else
+                                    <span class="text-gray-300 dark:text-gray-600">—</span>
+                                @endif
+                            </td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="admin-table-empty">No bookings found.</td>
+                            <td colspan="7" class="admin-table-empty">No bookings found.</td>
                         </tr>
                         @endforelse
                     </tbody>

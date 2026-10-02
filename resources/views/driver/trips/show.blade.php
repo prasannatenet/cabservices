@@ -62,6 +62,67 @@
                 </div>
             </div>
         </div>
+
+        @if($booking->canLogExpenses())
+            {{-- While the ride is running the driver's browser shares his position
+                 with the operations team, who follow the trip on the live map. --}}
+            <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 p-6">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Live Location</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            While this ride runs, your location is shared with the operations team so they can follow the trip on the map.
+                        </p>
+                    </div>
+                    <span class="inline-flex items-center gap-2 px-3 py-1 text-xs font-bold rounded-full border border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-400">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        Sharing
+                    </span>
+                </div>
+                <p id="location-status" class="text-xs text-gray-500 dark:text-gray-400 mt-3">Starting location sharing&hellip;</p>
+            </div>
+
+            <script>
+                (function () {
+                    const statusEl = document.getElementById('location-status');
+                    const endpoint = @json(route('driver.location.update', $booking));
+                    const csrfToken = @json(csrf_token());
+
+                    if (! navigator.geolocation) {
+                        statusEl.textContent = 'This device cannot share its location.';
+                        return;
+                    }
+
+                    const sendPosition = (position) => {
+                        fetch(endpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                            },
+                            body: JSON.stringify({
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude,
+                            }),
+                        })
+                            .then((response) => {
+                                statusEl.textContent = response.ok
+                                    ? 'Location sharing is on. Last sent ' + new Date().toLocaleTimeString() + '.'
+                                    : 'Could not send your location.';
+                            })
+                            .catch(() => {
+                                statusEl.textContent = 'Could not send your location.';
+                            });
+                    };
+
+                    navigator.geolocation.watchPosition(sendPosition, () => {
+                        statusEl.textContent = 'Allow location access in your browser to share this ride with the admin.';
+                    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+                })();
+            </script>
+        @endif
+
         <!-- Odometer at the start of the ride -->
         <div class="bg-white dark:bg-[#161615] shadow-sm rounded-2xl border border-gray-100 dark:border-gray-800/60 p-6">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white font-display">Odometer at Start</h3>

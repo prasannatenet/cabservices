@@ -7,6 +7,7 @@ use App\Mail\CustomerLoginDetails;
 use App\Mail\DriverAssigned;
 use App\Mail\DriverAssignmentNotice;
 use App\Mail\NewBookingRequest;
+use App\Mail\RideTrackingLinkMail;
 use App\Models\Booking;
 use App\Models\Driver;
 use App\Models\Setting;
@@ -71,6 +72,51 @@ class MailNotificationService
         $this->safely('driver assignment notice', function () use ($recipients, $booking): void {
             Mail::to($recipients)->send(
                 new DriverAssignmentNotice($booking)
+            );
+        });
+    }
+
+    /**
+     * The live tracking link sent the moment a driver starts a ride: the driver
+     * gets it so he can follow his own trip, and the operations team gets it so
+     * the running ride can be followed from the desk.
+     *
+     * Both sides are optional: a ride is followed by whoever has an address to
+     * receive the link, and turning mail notifications off stops them both.
+     */
+    public function notifyRideStarted(Booking $booking): void
+    {
+        $booking->loadMissing(['pickupCity', 'dropCity', 'serviceType', 'vehicle', 'driver']);
+
+        if (! Setting::boolean('mail.enabled', true)) {
+            return;
+        }
+
+        $adminRecipients = $this->notificationRecipients();
+
+        if ($adminRecipients !== []) {
+            $this->safely('ride tracking link to admin', function () use ($adminRecipients, $booking): void {
+                Mail::to($adminRecipients)->send(
+                    new RideTrackingLinkMail($booking)
+                );
+            });
+        }
+
+        $driver = $booking->driver;
+
+        if (! $driver) {
+            return;
+        }
+
+        $driverRecipients = $this->driverRecipients($driver);
+
+        if ($driverRecipients === []) {
+            return;
+        }
+
+        $this->safely('ride tracking link to driver', function () use ($driverRecipients, $booking): void {
+            Mail::to($driverRecipients)->send(
+                new RideTrackingLinkMail($booking)
             );
         });
     }

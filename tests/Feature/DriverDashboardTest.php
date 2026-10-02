@@ -250,6 +250,74 @@ class DriverDashboardTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    public function test_admin_cannot_give_a_driver_an_email_another_account_already_uses(): void
+    {
+        [$user, $driver] = $this->createDriverAccount();
+        $customer = User::factory()->customer()->create(['email' => 'dev@teneti.com']);
+
+        $response = $this->actingAs(User::factory()->create())->put(route('admin.drivers.update', $driver), [
+            'name' => $driver->name,
+            'phone' => $driver->phone,
+            'email' => 'dev@teneti.com',
+            'license_number' => $driver->license_number,
+            'license_expiry' => $driver->license_expiry->format('Y-m-d'),
+            'current_city_id' => $driver->current_city_id,
+            'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
+            'login_id' => 'driver002',
+        ]);
+
+        // The address is copied onto the driver's login account, where the column
+        // is unique, so it has to be refused before the database blows up.
+        $response->assertSessionHasErrors('email');
+
+        $this->assertSame('dev@teneti.com', $customer->fresh()->email);
+    }
+
+    public function test_admin_can_keep_the_email_already_on_the_drivers_own_account(): void
+    {
+        [$user, $driver] = $this->createDriverAccount();
+        $user->update(['email' => 'mine@teneti.com']);
+
+        $this->actingAs(User::factory()->create())->put(route('admin.drivers.update', $driver), [
+            'name' => $driver->name,
+            'phone' => $driver->phone,
+            'email' => 'mine@teneti.com',
+            'license_number' => $driver->license_number,
+            'license_expiry' => $driver->license_expiry->format('Y-m-d'),
+            'current_city_id' => $driver->current_city_id,
+            'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
+            'login_id' => 'driver001',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('mine@teneti.com', $user->fresh()->email);
+    }
+
+    public function test_admin_cannot_create_a_driver_with_an_email_another_account_already_uses(): void
+    {
+        User::factory()->customer()->create(['email' => 'dev@teneti.com']);
+
+        $response = $this->actingAs(User::factory()->create())->post(route('admin.drivers.store'), [
+            'name' => 'Ramesh Kumar',
+            'phone' => '9876543210',
+            'email' => 'dev@teneti.com',
+            'license_number' => 'DL-12345678',
+            'license_expiry' => now()->addYears(3)->toDateString(),
+            'current_city_id' => City::factory()->create()->id,
+            'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
+            'login_id' => 'ramesh123',
+            'login_password' => 'secret1234',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertDatabaseMissing('users', ['username' => 'ramesh123']);
+    }
+
     public function test_admin_can_update_driver_login_credentials(): void
     {
         [$admin, $driver] = $this->createDriverAccount();

@@ -27,6 +27,7 @@ class Booking extends Model
         'status', 'rejection_reason', 'rejection_source', 'admin_notes',
         'start_odometer_km', 'start_odometer_photo', 'trip_started_at',
         'end_odometer_km', 'end_odometer_photo', 'trip_ended_at',
+        'tracking_id', 'current_latitude', 'current_longitude',
         'billed_days', 'billed_included_km', 'billed_price_per_day', 'billed_price_per_km',
         'extra_km', 'base_amount', 'extra_km_amount', 'total_amount',
     ];

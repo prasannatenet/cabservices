@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DriverType;
 use App\Models\City;
 use App\Models\Driver;
 use App\Models\ServiceType;
@@ -167,6 +168,39 @@ class AssociatePanelTest extends TestCase
         $this->actingAs($this->associate)->get(route('associate.service-types.edit', $mine))->assertOk();
         $this->actingAs($this->associate)->get(route('associate.service-types.edit', $adminService))->assertForbidden();
         $this->actingAs($this->associate)->get(route('associate.service-types.edit', $global))->assertForbidden();
+    }
+
+    public function test_associate_cannot_give_a_driver_an_email_another_account_already_uses(): void
+    {
+        $driverUser = User::factory()->driver()->create([
+            'email' => null,
+            'username' => 'associate_driver',
+        ]);
+        $driver = Driver::factory()->create([
+            'user_id' => $driverUser->id,
+            'current_city_id' => $this->home->id,
+            'associate_id' => $this->associate->id,
+        ]);
+        $customer = User::factory()->customer()->create(['email' => 'dev@teneti.com']);
+
+        $response = $this->actingAs($this->associate)->put(route('associate.drivers.update', $driver), [
+            'name' => $driver->name,
+            'phone' => $driver->phone,
+            'email' => 'dev@teneti.com',
+            'license_number' => $driver->license_number,
+            'license_expiry' => $driver->license_expiry->format('Y-m-d'),
+            'current_city_id' => $this->home->id,
+            'status' => 'Available',
+            'driver_type' => DriverType::Permanent->value,
+            'monthly_salary' => 15000,
+            'login_id' => 'associate_driver',
+        ]);
+
+        // The address is copied onto the driver's login account, where the column
+        // is unique, so it has to be refused before the database blows up.
+        $response->assertSessionHasErrors('email');
+
+        $this->assertSame('dev@teneti.com', $customer->fresh()->email);
     }
 
     public function test_associate_records_show_up_in_the_admin_panel(): void

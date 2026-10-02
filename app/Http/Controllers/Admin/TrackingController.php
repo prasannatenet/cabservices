@@ -37,9 +37,15 @@ class TrackingController extends Controller
      */
     public function updateLocation(Request $request, Booking $booking)
     {
+        // Only the driver the ride was assigned to may move its marker, so one
+        // driver cannot report a position for another's trip.
+        $driver = $request->user()->driver;
+
+        abort_unless($driver && $booking->driver_id === $driver->id, 403, 'This ride was not assigned to you.');
+
         $request->validate([
-            'latitude' => ['required', 'numeric'],
-            'longitude' => ['required', 'numeric'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
         ]);
 
         $booking->update([

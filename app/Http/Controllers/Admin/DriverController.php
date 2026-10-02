@@ -69,7 +69,7 @@ class DriverController extends Controller
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
             'alternate_phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
             'license_number' => 'required|string|unique:drivers',
             'license_expiry' => 'required|date',
             'aadhaar_number' => 'nullable|string|size:12|unique:drivers,aadhaar_number',
@@ -143,7 +143,12 @@ class DriverController extends Controller
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
             'alternate_phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
+            'email' => [
+                'nullable', 'email', 'max:255',
+                // The address is copied onto the driver's login account, where the
+                // column is unique, so it must not clash with another account's.
+                Rule::unique('users', 'email')->ignore($driver->user?->id),
+            ],
             'license_number' => 'required|string|unique:drivers,license_number,'.$driver->id,
             'license_expiry' => 'required|date',
             'aadhaar_number' => [

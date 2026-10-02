@@ -55,7 +55,7 @@
 
         <div>
             <x-input-label for="license_expiry" :value="__('License Expiry Date')" />
-            <x-text-input id="license_expiry" class="block mt-1 w-full" type="date" name="license_expiry" :value="old('license_expiry', $driver?->license_expiry)" required />
+            <x-text-input id="license_expiry" class="block mt-1 w-full" type="date" name="license_expiry" :value="old('license_expiry', $driver?->license_expiry?->format('Y-m-d'))" required />
             <x-input-error :messages="$errors->get('license_expiry')" class="mt-2" />
         </div>
 

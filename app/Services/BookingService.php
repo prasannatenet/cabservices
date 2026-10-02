@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\AssignmentResponseStatus;
 use App\Enums\BookingStatus;
 use App\Enums\RejectionSource;
-use App\Mail\RideTrackingLinkMail;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
 use App\Models\City;
@@ -15,7 +14,6 @@ use App\Models\ServiceType;
 use App\Models\Vehicle;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class BookingService
@@ -303,8 +301,11 @@ class BookingService
             return $booking;
         });
 
-        // Send tracking link to Admin
-        Mail::to(config('mail.from.address', 'admin@example.com'))->send(new RideTrackingLinkMail($booking));
+        // The driver and the operations team both get the live tracking link,
+        // so a ride that is under way can be followed from either side. A mail
+        // that cannot go out is logged by the service and never breaks the
+        // started trip.
+        $this->mailNotifications->notifyRideStarted($booking);
 
         return $booking;
     }
