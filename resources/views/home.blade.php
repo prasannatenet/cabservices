@@ -53,8 +53,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Pickup Time</label>
-                            <input type="time" name="pickup_time" value="{{ old('pickup_time') }}" required class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                            @error('pickup_time') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            <x-time-input name="pickup_time" :value="old('pickup_time')" required />
                         </div>
 
                         <div>
@@ -64,8 +63,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Drop Time</label>
-                            <input type="time" name="drop_time" value="{{ old('drop_time') }}" class="w-full px-4 py-3.5 bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all shadow-sm">
-                            @error('drop_time') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            <x-time-input name="drop_time" :value="old('drop_time')" />
                         </div>
 
                         <!-- Service Type: decides which fleet is offered -->

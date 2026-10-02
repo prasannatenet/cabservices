@@ -27,6 +27,9 @@
                 background: rgba(10, 10, 10, 0.7);
                 border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             }
+
+            /* Keeps an Alpine x-show panel from flashing before Alpine boots. */
+            [x-cloak] { display: none !important; }
         </style>
     </head>
     <body class="font-sans antialiased bg-gray-50 dark:bg-[#0a0a0a] text-gray-900 dark:text-gray-100 selection:bg-primary-500 selection:text-white transition-colors duration-300">
